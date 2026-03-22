@@ -1,14 +1,16 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import type { ResponseCookie } from 'next/dist/compiled/@edge-runtime/cookies'
 
 const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'vibesite.ru'
+
+type CookieToSet = { name: string; value: string; options?: Partial<ResponseCookie> }
 
 export async function middleware(request: NextRequest) {
   const host = request.headers.get('host') ?? ''
 
   // ============================================================
   // ПОДДОМЕНЫ КЛИЕНТСКИХ САЙТОВ
-  // subdomain.vibesite.ru → /api/site/subdomain
   // ============================================================
   const isSubdomain =
     host.endsWith(`.${APP_DOMAIN}`) &&
@@ -35,7 +37,7 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll()
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: CookieToSet[]) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           )
