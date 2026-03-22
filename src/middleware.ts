@@ -3,6 +3,10 @@ import { NextResponse, type NextRequest } from 'next/server'
 import type { ResponseCookie } from 'next/dist/compiled/@edge-runtime/cookies'
 
 const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'vibesite.ru'
+// Полный хост приложения (без протокола), например vibesite.vercel.app или vibesite.ru
+const APP_HOST = (process.env.NEXT_PUBLIC_APP_URL ?? '')
+  .replace('https://', '')
+  .replace('http://', '')
 
 type CookieToSet = { name: string; value: string; options?: Partial<ResponseCookie> }
 
@@ -11,11 +15,18 @@ export async function middleware(request: NextRequest) {
 
   // ============================================================
   // ПОДДОМЕНЫ КЛИЕНТСКИХ САЙТОВ
+  // Срабатывает только если:
+  // 1. Хост оканчивается на .APP_DOMAIN (например .vibesite.ru)
+  // 2. Хост не является самим приложением (не vibesite.vercel.app)
+  // 3. Хост не www
   // ============================================================
+  const isVercelPreview = host.endsWith('.vercel.app')
+  const isAppHost = host === APP_HOST
   const isSubdomain =
+    !isVercelPreview &&
+    !isAppHost &&
     host.endsWith(`.${APP_DOMAIN}`) &&
-    !host.startsWith('www.') &&
-    host !== APP_DOMAIN
+    !host.startsWith('www.')
 
   if (isSubdomain) {
     const subdomain = host.replace(`.${APP_DOMAIN}`, '')
@@ -25,7 +36,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // ============================================================
-  // АВТОРИЗАЦИЯ (основной домен)
+  // АВТОРИЗАЦИЯ (основной домен и Vercel preview)
   // ============================================================
   let supabaseResponse = NextResponse.next({ request })
 
