@@ -89,7 +89,7 @@ function SiteCard({ site }: { site: Website }) {
       {/* Превью — iframe в контейнере с правильным масштабом */}
       <div
         className="relative w-full bg-gradient-to-br from-brand-50 to-purple-50"
-        style={{ height: '180px' }}
+        style={{ height: '180px', overflow: 'hidden' }}
       >
         {site.generated_code ? (
           <div
