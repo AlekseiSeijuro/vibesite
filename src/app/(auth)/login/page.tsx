@@ -7,6 +7,7 @@ import { z } from 'zod'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
+import { MailCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
@@ -22,6 +23,7 @@ export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect') || '/dashboard'
+  const isRegistered = searchParams.get('registered') === '1'
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
 
@@ -65,6 +67,22 @@ export default function LoginPage() {
   return (
     <div className="w-full max-w-md">
       <div className="card shadow-md">
+
+        {/* Баннер после регистрации */}
+        {isRegistered && (
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-green-50 border border-green-100 mb-6">
+            <MailCheck className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-green-800">
+                Письмо отправлено на вашу почту
+              </p>
+              <p className="text-xs text-green-600 mt-0.5">
+                Перейдите по ссылке в письме чтобы подтвердить аккаунт, затем войдите.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-gray-900">Вход в аккаунт</h1>
           <p className="text-gray-500 text-sm mt-1">
