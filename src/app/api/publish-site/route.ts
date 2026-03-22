@@ -17,11 +17,11 @@ export async function POST(request: Request) {
   try { rawBody = await request.json() } catch {
     return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
   }
-  const { data: parsed, error: validationError } = parseBody(publishSiteSchema, rawBody)
-  if (validationError) {
-    return NextResponse.json({ error: validationError }, { status: 400 })
+  const parseResult = parseBody(publishSiteSchema, rawBody)
+  if (!parseResult.success) {
+    return NextResponse.json({ error: parseResult.error }, { status: 400 })
   }
-  const websiteId = parsed.websiteId
+  const websiteId = parseResult.data.websiteId
 
   // Получаем сайт из БД
   const { data: site } = await supabase

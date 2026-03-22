@@ -56,18 +56,22 @@ export const createPaymentSchema = z.object({
 })
 
 // ============================================================
-// Хелпер — парсит и возвращает { data } или { error, status }
+// Хелпер с явными типами — TypeScript понимает сужение
 // ============================================================
+export type ParseSuccess<T> = { success: true; data: T; error: null }
+export type ParseFailure    = { success: false; data: null; error: string }
+export type ParseResult<T>  = ParseSuccess<T> | ParseFailure
+
 export function parseBody<T>(
   schema: z.ZodSchema<T>,
   body: unknown
-): { data: T; error: null } | { data: null; error: string } {
+): ParseResult<T> {
   const result = schema.safeParse(body)
   if (!result.success) {
     const messages = result.error.errors
       .map((e) => `${e.path.join('.')}: ${e.message}`)
       .join(', ')
-    return { data: null, error: messages }
+    return { success: false, data: null, error: messages }
   }
-  return { data: result.data, error: null }
+  return { success: true, data: result.data, error: null }
 }

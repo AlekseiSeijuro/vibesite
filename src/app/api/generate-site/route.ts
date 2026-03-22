@@ -35,13 +35,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Некорректный JSON' }, { status: 400 })
     }
 
-    const { data: parsed, error: validationError } = parseBody(generateSiteSchema, rawBody)
-    if (validationError || !parsed) {
-      return NextResponse.json({ error: validationError ?? 'Некорректные данные' }, { status: 400 })
+    const parseResult = parseBody(generateSiteSchema, rawBody)
+    if (!parseResult.success) {
+      return NextResponse.json({ error: parseResult.error }, { status: 400 })
     }
 
-    const formData: WebsiteFormData = parsed.formData as WebsiteFormData
-    const websiteId: string | null = parsed.websiteId ?? null
+    const formData: WebsiteFormData = parseResult.data.formData as WebsiteFormData
+    const websiteId: string | null = parseResult.data.websiteId ?? null
 
     // 3. Получаем профиль — с fallback на trial если RLS не пускает
     let subscriptionStatus = 'trial'
