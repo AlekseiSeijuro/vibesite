@@ -1,15 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { Plus, Globe, Clock, CheckCircle, XCircle } from 'lucide-react'
+import { Plus, Globe, Clock } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import type { Website } from '@/types'
 
 function StatusBadge({ status }: { status: Website['status'] }) {
   const map = {
-    draft:     { label: 'Черновик',   class: 'badge-gray' },
-    demo:      { label: 'Демо',       class: 'badge-yellow' },
+    draft:     { label: 'Черновик',    class: 'badge-gray' },
+    demo:      { label: 'Демо',        class: 'badge-yellow' },
     published: { label: 'Опубликован', class: 'badge-green' },
-    archived:  { label: 'Архив',      class: 'badge-gray' },
+    archived:  { label: 'Архив',       class: 'badge-gray' },
   }
   const s = map[status]
   return <span className={s.class}>{s.label}</span>
@@ -35,7 +35,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {/* Шапка */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Мои сайты</h1>
@@ -51,15 +50,12 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      {/* Статус подписки */}
       {profile?.subscription_status === 'trial' && (
         <div className="rounded-2xl bg-brand-50 border border-brand-100 p-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Clock className="h-5 w-5 text-brand-600 shrink-0" />
             <div>
-              <p className="text-sm font-medium text-brand-800">
-                Вы на демо-тарифе
-              </p>
+              <p className="text-sm font-medium text-brand-800">Вы на демо-тарифе</p>
               <p className="text-xs text-brand-600 mt-0.5">
                 Опубликуйте сайт без водяного знака — перейдите на платный тариф
               </p>
@@ -71,7 +67,6 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Список сайтов */}
       {list.length === 0 ? (
         <EmptyState />
       ) : (
@@ -86,54 +81,63 @@ export default async function DashboardPage() {
 }
 
 function SiteCard({ site }: { site: Website }) {
-  const siteUrl = site.subdomain
-    ? `https://${site.subdomain}.${process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'vibesite.ru'}`
-    : null
+  const masterName =
+    (site.meta_data as { master_name?: string })?.master_name ?? 'Новый сайт'
 
   return (
-    <div className="card hover:shadow-md transition-shadow group">
-      {/* Превью */}
-      <div className="w-full h-36 rounded-xl bg-gradient-to-br from-brand-100 to-purple-100 mb-4 flex items-center justify-center overflow-hidden relative">
+    <div className="card hover:shadow-md transition-shadow p-0 overflow-hidden">
+      {/* Превью — iframe в контейнере с правильным масштабом */}
+      <div
+        className="relative w-full bg-gradient-to-br from-brand-50 to-purple-50"
+        style={{ height: '180px' }}
+      >
         {site.generated_code ? (
-          <iframe
-            srcDoc={site.generated_code}
-            className="w-full h-full scale-[0.4] origin-top-left pointer-events-none"
-            style={{ width: '250%', height: '250%' }}
-            sandbox=""
-            title={`preview-${site.id}`}
-          />
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '1280px',
+              height: '900px',
+              transform: 'scale(0.234)',   // 300 / 1280 ≈ 0.234 (подбирается под ширину карточки ~300px)
+              transformOrigin: 'top left',
+              pointerEvents: 'none',
+              overflow: 'hidden',
+            }}
+          >
+            <iframe
+              srcDoc={site.generated_code}
+              sandbox=""
+              title={`preview-${site.id}`}
+              style={{
+                width: '1280px',
+                height: '900px',
+                border: 'none',
+              }}
+            />
+          </div>
         ) : (
-          <Globe className="h-10 w-10 text-brand-300" />
+          <div className="w-full h-full flex items-center justify-center">
+            <Globe className="h-10 w-10 text-brand-200" />
+          </div>
         )}
+
+        {/* Статус поверх превью */}
+        <div className="absolute top-2 right-2">
+          <StatusBadge status={site.status} />
+        </div>
       </div>
 
       {/* Инфо */}
-      <div className="space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <p className="font-semibold text-gray-900 truncate">
-            {(site.meta_data as { master_name?: string })?.master_name ?? 'Новый сайт'}
-          </p>
-          <StatusBadge status={site.status} />
-        </div>
-
-        {siteUrl && (
-          <a
-            href={siteUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-brand-600 hover:underline truncate block"
-          >
-            {siteUrl.replace('https://', '')}
-          </a>
-        )}
-
+      <div className="p-4 space-y-1">
+        <p className="font-semibold text-gray-900 truncate">{masterName}</p>
         <p className="text-xs text-gray-400">
           Создан {formatDate(site.created_at)}
         </p>
       </div>
 
       {/* Кнопки */}
-      <div className="flex gap-2 mt-4 pt-4 border-t border-gray-100">
+      <div className="flex gap-2 px-4 pb-4">
         <Link
           href={`/dashboard/preview/${site.id}`}
           className="btn-secondary text-xs py-1.5 flex-1 justify-center"
