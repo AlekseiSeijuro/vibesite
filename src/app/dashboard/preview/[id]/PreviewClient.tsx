@@ -24,16 +24,31 @@ interface Props {
 
 type ViewMode = 'desktop' | 'mobile'
 
+function getSiteUrl(subdomain: string | null, status: string): string | null {
+  if (!subdomain || status !== 'published') return null
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'vibesite.ru'
+
+  // Если деплой на Vercel (нет реального домена) — используем /api/site/поддомен
+  const isVercel = appUrl.includes('vercel.app') || appUrl.includes('localhost')
+  if (isVercel) {
+    return `${appUrl}/api/site/${subdomain}`
+  }
+
+  // Реальный домен — красивый поддомен
+  return `https://${subdomain}.${appDomain}`
+}
+
 export default function PreviewClient({ site, isPaid }: Props) {
   const router = useRouter()
   const [viewMode, setViewMode] = useState<ViewMode>('desktop')
   const [regenerating, setRegenerating] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [published, setPublished] = useState(site.status === 'published')
+  const [currentSubdomain, setCurrentSubdomain] = useState(site.subdomain)
   const [siteUrl, setSiteUrl] = useState<string | null>(
-    site.subdomain && site.status === 'published'
-      ? `https://${site.subdomain}.${process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'vibesite.ru'}`
-      : null
+    getSiteUrl(site.subdomain, site.status)
   )
 
   const handleRegenerate = async () => {
@@ -66,7 +81,9 @@ export default function PreviewClient({ site, isPaid }: Props) {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setPublished(true)
-      setSiteUrl(data.url)
+      setCurrentSubdomain(data.subdomain)
+      const url = getSiteUrl(data.subdomain, 'published')
+      setSiteUrl(url)
       toast.success('Сайт опубликован!')
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Ошибка публикации')
@@ -82,7 +99,8 @@ export default function PreviewClient({ site, isPaid }: Props) {
     <div className="flex flex-col h-[calc(100vh-64px)]">
       {/* Панель управления */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 flex-wrap">
-        {/* Название */}
+
+        {/* Название и ссылка */}
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-gray-900 truncate">{masterName}</p>
           {siteUrl && (
@@ -90,15 +108,15 @@ export default function PreviewClient({ site, isPaid }: Props) {
               href={siteUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-brand-600 hover:underline flex items-center gap-1"
+              className="text-xs text-brand-600 hover:underline flex items-center gap-1 mt-0.5"
             >
-              {siteUrl.replace('https://', '')}
+              Открыть сайт
               <ExternalLink className="h-3 w-3" />
             </a>
           )}
         </div>
 
-        {/* Переключатель вида */}
+        {/* Переключатель Desktop / Mobile */}
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
           <button
             onClick={() => setViewMode('desktop')}
@@ -126,7 +144,7 @@ export default function PreviewClient({ site, isPaid }: Props) {
           </button>
         </div>
 
-        {/* Кнопки действий */}
+        {/* Действия */}
         <Button
           variant="secondary"
           size="sm"
@@ -147,9 +165,22 @@ export default function PreviewClient({ site, isPaid }: Props) {
         </Button>
 
         {published ? (
-          <div className="flex items-center gap-2 text-sm text-green-600 font-medium">
-            <CheckCircle className="h-4 w-4" />
-            Опубликован
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
+              <CheckCircle className="h-4 w-4" />
+              Опубликован
+            </div>
+            {siteUrl && (
+              <a
+                href={siteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secondary text-xs py-1.5 px-3"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Открыть
+              </a>
+            )}
           </div>
         ) : (
           <Button loading={publishing} onClick={handlePublish} size="sm">
@@ -159,7 +190,7 @@ export default function PreviewClient({ site, isPaid }: Props) {
         )}
       </div>
 
-      {/* Iframe с сайтом */}
+      {/* Предпросмотр */}
       <div className="flex-1 bg-gray-200 flex items-start justify-center overflow-auto p-4">
         {site.generated_code ? (
           <div
@@ -185,12 +216,11 @@ export default function PreviewClient({ site, isPaid }: Props) {
         )}
       </div>
 
-      {/* Баннер для демо */}
+      {/* Баннер демо */}
       {!isPaid && (
         <div className="bg-brand-50 border-t border-brand-100 px-4 py-2.5 flex items-center justify-between gap-4">
           <p className="text-sm text-brand-700">
-            <span className="font-medium">Демо-режим:</span> на сайте отображается
-            водяной знак Vibesite
+            <span className="font-medium">Демо-режим:</span> на сайте отображается водяной знак Vibesite
           </p>
           <a href="/pricing" className="btn-primary text-xs py-1.5 px-3 shrink-0">
             Убрать водяной знак
