@@ -12,15 +12,16 @@ export default function HomePage() {
               <Sparkles className="h-6 w-6 text-brand-600" />
               <span className="text-lg font-bold text-gray-900">Vibesite</span>
             </div>
-            <nav className="flex items-center gap-3">
-              <Link href="/pricing" className="btn-ghost text-sm">
+            <nav className="flex items-center gap-2">
+              <Link href="/pricing" className="btn-ghost text-sm hidden sm:inline-flex">
                 Тарифы
               </Link>
               <Link href="/login" className="btn-secondary text-sm">
                 Войти
               </Link>
               <Link href="/register" className="btn-primary text-sm">
-                Создать сайт
+                <span className="hidden sm:inline">Создать сайт</span>
+                <span className="sm:hidden">Начать</span>
               </Link>
             </nav>
           </div>
