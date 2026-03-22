@@ -36,8 +36,8 @@ export async function POST(request: Request) {
     }
 
     const { data: parsed, error: validationError } = parseBody(generateSiteSchema, rawBody)
-    if (validationError) {
-      return NextResponse.json({ error: validationError }, { status: 400 })
+    if (validationError || !parsed) {
+      return NextResponse.json({ error: validationError ?? 'Некорректные данные' }, { status: 400 })
     }
 
     const formData: WebsiteFormData = parsed.formData as WebsiteFormData
