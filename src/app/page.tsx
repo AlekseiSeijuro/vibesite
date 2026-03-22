@@ -50,6 +50,10 @@ export default function HomePage() {
             Как это работает
           </Link>
         </div>
+        <p className="text-sm text-gray-400 mt-4">
+          Демо-версия бесплатна — не нужно вводить данные карты или оплачивать заранее.
+          Платный тариф подключается только если захотите убрать водяной знак.
+        </p>
       </section>
 
       {/* Как работает */}
@@ -140,7 +144,7 @@ export default function HomePage() {
             Готовы попробовать?
           </h2>
           <p className="text-brand-100 mb-8">
-            Демо-версия бесплатно. Без кредитной карты.
+            Демо-версия бесплатна — регистрация без оплаты.
           </p>
           <Link
             href="/register"
@@ -163,8 +167,8 @@ export default function HomePage() {
             © {new Date().getFullYear()} Vibesite. Все права защищены.
           </p>
           <div className="flex flex-col sm:flex-row items-center gap-4 text-sm text-gray-400">
-            <a href="tel:+79103025790" className="hover:text-gray-600 font-medium">
-              8 910 302 57 90
+            <a href="tel:+79103025790" className="hover:text-gray-600 transition-colors">
+              📞 8 910 302 57 90
             </a>
             <Link href="/privacy" className="hover:text-gray-600">
               Конфиденциальность
