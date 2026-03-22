@@ -21,11 +21,13 @@ export default function AppleIcon() {
           style={{
             color: 'white',
             fontSize: 110,
-            fontWeight: 700,
+            fontWeight: 900,
+            fontFamily: 'serif',
             lineHeight: 1,
+            letterSpacing: '-4px',
           }}
         >
-          ✦
+          V
         </div>
       </div>
     ),

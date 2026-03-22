@@ -17,15 +17,18 @@ export default function Icon() {
           justifyContent: 'center',
         }}
       >
+        {/* Буква V как логотип */}
         <div
           style={{
             color: 'white',
-            fontSize: 20,
-            fontWeight: 700,
+            fontSize: 18,
+            fontWeight: 900,
+            fontFamily: 'serif',
             lineHeight: 1,
+            letterSpacing: '-1px',
           }}
         >
-          ✦
+          V
         </div>
       </div>
     ),
