@@ -162,7 +162,10 @@ export default function HomePage() {
           <p className="text-sm text-gray-400">
             © {new Date().getFullYear()} Vibesite. Все права защищены.
           </p>
-          <div className="flex gap-4 text-sm text-gray-400">
+          <div className="flex flex-col sm:flex-row items-center gap-4 text-sm text-gray-400">
+            <a href="tel:+79103025790" className="hover:text-gray-600 font-medium">
+              8 910 302 57 90
+            </a>
             <Link href="/privacy" className="hover:text-gray-600">
               Конфиденциальность
             </Link>
