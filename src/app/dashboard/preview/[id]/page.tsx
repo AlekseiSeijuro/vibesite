@@ -8,9 +8,7 @@ interface Props {
 
 export default async function PreviewPage({ params }: Props) {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) redirect('/login')
 
@@ -25,14 +23,26 @@ export default async function PreviewPage({ params }: Props) {
 
   const { data: profile } = await supabase
     .from('users')
-    .select('subscription_status')
+    .select('subscription_status, role')
     .eq('id', user.id)
     .single()
+
+  // Проверяем есть ли выполненный заказ на исходники
+  const { data: completedOrder } = await supabase
+    .from('orders')
+    .select('id')
+    .eq('website_id', params.id)
+    .eq('user_id', user.id)
+    .eq('status', 'completed')
+    .single()
+
+  const isAdmin = profile?.role === 'admin'
 
   return (
     <PreviewClient
       site={site}
       isPaid={profile?.subscription_status === 'active'}
+      hasCompletedOrder={!!completedOrder || isAdmin}
     />
   )
 }

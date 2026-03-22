@@ -12,6 +12,7 @@ import {
   Edit,
   CheckCircle,
   Loader2,
+  Download,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Button from '@/components/ui/Button'
@@ -20,6 +21,7 @@ import type { Website } from '@/types'
 interface Props {
   site: Website
   isPaid: boolean
+  hasCompletedOrder: boolean
 }
 
 type ViewMode = 'desktop' | 'mobile'
@@ -40,7 +42,7 @@ function getSiteUrl(subdomain: string | null, status: string): string | null {
   return `https://${subdomain}.${appDomain}`
 }
 
-export default function PreviewClient({ site, isPaid }: Props) {
+export default function PreviewClient({ site, isPaid, hasCompletedOrder }: Props) {
   const router = useRouter()
   const [viewMode, setViewMode] = useState<ViewMode>('desktop')
   const [regenerating, setRegenerating] = useState(false)
@@ -163,6 +165,17 @@ export default function PreviewClient({ site, isPaid }: Props) {
           <Edit className="h-4 w-4" />
           Изменить данные
         </Button>
+
+        {hasCompletedOrder && (
+          <a
+            href={`/api/sites/${site.id}/download`}
+            download
+            className="btn-secondary text-sm py-1.5 px-3 inline-flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Скачать HTML
+          </a>
+        )}
 
         {published ? (
           <div className="flex items-center gap-2">
