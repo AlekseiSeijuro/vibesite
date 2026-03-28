@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Sparkles, LayoutDashboard, Settings, LogOut, CreditCard } from 'lucide-react'
+import { Sparkles, LayoutDashboard, Settings, LogOut, CreditCard, Home } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { User } from '@/types'
@@ -37,6 +37,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
     <header className="border-b border-gray-200 bg-white sticky top-0 z-40">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
+
           {/* Логотип */}
           <Link href="/dashboard" className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-brand-600" />
@@ -62,11 +63,22 @@ export default function DashboardNav({ user }: DashboardNavProps) {
             ))}
           </nav>
 
-          {/* Пользователь */}
-          <div className="flex items-center gap-3">
-            <span className="hidden sm:block text-sm text-gray-500 truncate max-w-[180px]">
+          {/* Правая часть */}
+          <div className="flex items-center gap-2">
+            {/* Ссылка на главную */}
+            <Link
+              href="/"
+              className="btn-ghost text-sm text-gray-500 hidden sm:inline-flex"
+              title="На главную"
+            >
+              <Home className="h-4 w-4" />
+              <span className="hidden md:inline">На сайт</span>
+            </Link>
+
+            <span className="hidden md:block text-sm text-gray-400 truncate max-w-[160px]">
               {user?.email}
             </span>
+
             <button
               onClick={handleSignOut}
               className="btn-ghost text-sm text-gray-500"
