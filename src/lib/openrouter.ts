@@ -19,7 +19,7 @@ export async function generateWithClaude(
 ): Promise<{ content: string; tokensUsed: number }> {
   const completion = await openrouter.chat.completions.create({
     model: GENERATION_MODEL,
-    max_tokens: 8000,
+    max_tokens: 16000,
     temperature: 0.7,
     messages: [
       { role: 'system', content: systemPrompt },
