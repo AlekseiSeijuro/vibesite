@@ -65,11 +65,7 @@ function ExamplesSection() {
               >
                 <p className="font-semibold text-gray-900 text-sm">{ex.title}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{ex.niche}</p>
-                <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full font-medium ${
-                  i === 0 ? 'bg-rose-100 text-rose-700' :
-                  i === 1 ? 'bg-stone-100 text-stone-700' :
-                  'bg-gray-100 text-gray-600'
-                }`}>
+                <span className="inline-block mt-2 text-xs px-2 py-0.5 rounded-full font-medium bg-brand-50 text-brand-700">
                   {ex.style}
                 </span>
               </button>
