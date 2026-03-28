@@ -1,8 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-// Используем прямой Supabase клиент без cookies —
-// публичный endpoint, авторизация не нужна
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -23,8 +21,9 @@ export async function GET(
 
   console.log('[site] Result:', { found: !!site, error: error?.message })
 
+  const domain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'beauty-site.ru'
+
   if (!site?.generated_code) {
-    const domain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'vibesite.ru'
     return new NextResponse(
       `<!DOCTYPE html>
 <html lang="ru">
@@ -50,7 +49,12 @@ export async function GET(
   </div>
 </body>
 </html>`,
-      { status: 404, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+      {
+        status: 404,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+        },
+      }
     )
   }
 
@@ -59,6 +63,16 @@ export async function GET(
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+      'X-Robots-Tag': 'index, follow',
+      // Разрешаем загрузку любых ресурсов в клиентских сайтах
+      'Content-Security-Policy': [
+        "default-src *",
+        "script-src 'self' 'unsafe-inline'",
+        "style-src * 'unsafe-inline'",
+        "img-src * data: blob:",
+        "font-src * data:",
+        "connect-src *",
+      ].join('; '),
     },
   })
 }

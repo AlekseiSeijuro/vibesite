@@ -10,12 +10,16 @@ const nextConfig = {
         protocol: 'https',
         hostname: '*.supabase.co',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
     ],
   },
   async headers() {
     return [
       {
-        // Применяем ко всем страницам приложения
+        // Страницы приложения
         source: '/((?!api/site).*)',
         headers: [
           { key: 'X-Content-Type-Options',    value: 'nosniff' },
@@ -27,10 +31,10 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // unsafe нужен для Next.js
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
-              "img-src 'self' data: blob: https://storage.yandexcloud.net https://*.supabase.co",
+              "img-src 'self' data: blob: https://storage.yandexcloud.net https://*.supabase.co https://images.unsplash.com",
               "connect-src 'self' https://*.supabase.co https://routerai.ru https://api.yookassa.ru",
               "frame-src 'self'",
               "frame-ancestors 'self'",
@@ -39,11 +43,23 @@ const nextConfig = {
         ],
       },
       {
-        // Клиентские сайты — без CSP чтобы не ломать сгенерированный HTML
+        // Клиентские сайты — максимально открытые заголовки
+        // чтобы сгенерированный HTML мог грузить любые ресурсы
         source: '/api/site/(.*)',
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Robots-Tag',           value: 'index, follow' },
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src *",
+              "script-src 'self' 'unsafe-inline'",
+              "style-src * 'unsafe-inline'",
+              "img-src * data: blob:",
+              "font-src * data:",
+              "connect-src *",
+            ].join('; '),
+          },
         ],
       },
     ]
