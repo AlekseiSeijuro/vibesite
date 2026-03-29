@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
@@ -12,6 +12,9 @@ import {
   Edit,
   CheckCircle,
   Loader2,
+  Send,
+  Sparkles,
+  Wallet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Button from '@/components/ui/Button'
@@ -21,9 +24,17 @@ interface Props {
   site: Website
   isPaid: boolean
   hasCompletedOrder: boolean
+  editBalance: number
 }
 
 type ViewMode = 'desktop' | 'mobile'
+
+interface ChatMessage {
+  role: 'user' | 'assistant'
+  text: string
+}
+
+const EDIT_COST = 50
 
 function getSiteUrl(subdomain: string | null, status: string): string | null {
   if (!subdomain || status !== 'published') return null
@@ -31,18 +42,18 @@ function getSiteUrl(subdomain: string | null, status: string): string | null {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'vibesite.ru'
 
-  // Если деплой на Vercel (нет реального домена) — используем /api/site/поддомен
   const isVercel = appUrl.includes('vercel.app') || appUrl.includes('localhost')
   if (isVercel) {
     return `${appUrl}/api/site/${subdomain}`
   }
 
-  // Реальный домен — красивый поддомен
   return `https://${subdomain}.${appDomain}`
 }
 
-export default function PreviewClient({ site, isPaid, hasCompletedOrder }: Props) {
+export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBalance: initialBalance }: Props) {
   const router = useRouter()
+
+  // --- превью ---
   const [viewMode, setViewMode] = useState<ViewMode>('desktop')
   const [regenerating, setRegenerating] = useState(false)
   const [publishing, setPublishing] = useState(false)
@@ -51,6 +62,26 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder }: Props
   const [siteUrl, setSiteUrl] = useState<string | null>(
     getSiteUrl(site.subdomain, site.status)
   )
+  // ключ для принудительной перезагрузки iframe после правки
+  const [iframeKey, setIframeKey] = useState(0)
+
+  // --- чат ---
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      role: 'assistant',
+      text: 'Привет! Опишите что изменить на сайте — и я внесу правку. Например: «сделай кнопку записи зелёной» или «измени заголовок на "Студия красоты Анна"».',
+    },
+  ])
+  const [inputValue, setInputValue] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [balance, setBalance] = useState(initialBalance)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  // --- handlers превью ---
 
   const handleRegenerate = async () => {
     setRegenerating(true)
@@ -93,15 +124,92 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder }: Props
     }
   }
 
+  // --- handler чата ---
+
+  const handleEdit = async () => {
+    const message = inputValue.trim()
+    if (!message || editing) return
+
+    // Проверка баланса на клиенте — покажем ошибку сразу, не дожидаясь сервера
+    if (balance < EDIT_COST) {
+      setMessages(prev => [
+        ...prev,
+        { role: 'user', text: message },
+        {
+          role: 'assistant',
+          text: `На балансе недостаточно средств. Для правки нужно ${EDIT_COST} ₽, у вас ${balance} ₽. Пополните баланс в разделе «Биллинг».`,
+        },
+      ])
+      setInputValue('')
+      return
+    }
+
+    setMessages(prev => [...prev, { role: 'user', text: message }])
+    setInputValue('')
+    setEditing(true)
+
+    try {
+      const res = await fetch('/api/edit-site', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ websiteId: site.id, userMessage: message }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        // Специальная обработка недостатка баланса с сервера
+        if (data.code === 'INSUFFICIENT_BALANCE') {
+          setMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              text: `На балансе недостаточно средств. Для правки нужно ${EDIT_COST} ₽, у вас ${data.balance} ₽. Пополните баланс в разделе «Биллинг».`,
+            },
+          ])
+          return
+        }
+        throw new Error(data.error)
+      }
+
+      // Успех — обновляем баланс и перезагружаем iframe
+      setBalance(data.newBalance)
+      setIframeKey(k => k + 1)
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          text: `Готово! Правка внесена. Списано ${EDIT_COST} ₽, остаток: ${data.newBalance} ₽.`,
+        },
+      ])
+    } catch (e: unknown) {
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          text: `Не удалось внести правку: ${e instanceof Error ? e.message : 'неизвестная ошибка'}. Попробуйте ещё раз.`,
+        },
+      ])
+    } finally {
+      setEditing(false)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleEdit()
+    }
+  }
+
   const masterName =
     (site.meta_data as { master_name?: string })?.master_name ?? 'Сайт'
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
-      {/* Панель управления */}
+
+      {/* ── Панель управления ── */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 flex-wrap">
 
-        {/* Название и ссылка */}
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-gray-900 truncate">{masterName}</p>
           {siteUrl && (
@@ -117,7 +225,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder }: Props
           )}
         </div>
 
-        {/* Переключатель Desktop / Mobile */}
+        {/* Desktop / Mobile */}
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
           <button
             onClick={() => setViewMode('desktop')}
@@ -145,13 +253,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder }: Props
           </button>
         </div>
 
-        {/* Действия */}
-        <Button
-          variant="secondary"
-          size="sm"
-          loading={regenerating}
-          onClick={handleRegenerate}
-        >
+        <Button variant="secondary" size="sm" loading={regenerating} onClick={handleRegenerate}>
           <RefreshCw className="h-4 w-4" />
           Перегенерировать
         </Button>
@@ -164,8 +266,6 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder }: Props
           <Edit className="h-4 w-4" />
           Изменить данные
         </Button>
-
-
 
         {published ? (
           <div className="flex items-center gap-2">
@@ -193,32 +293,134 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder }: Props
         )}
       </div>
 
-      {/* Предпросмотр */}
-      <div className="flex-1 bg-gray-200 flex items-start justify-center overflow-auto p-4">
-        {site.generated_code ? (
-          <div
-            className={cn(
-              'bg-white shadow-xl rounded-lg overflow-hidden transition-all',
-              viewMode === 'desktop' ? 'w-full max-w-5xl' : 'w-[390px]'
+      {/* ── Основная область: iframe + чат ── */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* Превью сайта */}
+        <div className="flex-1 bg-gray-200 flex items-start justify-center overflow-auto p-4">
+          {site.generated_code ? (
+            <div
+              className={cn(
+                'bg-white shadow-xl rounded-lg overflow-hidden transition-all',
+                viewMode === 'desktop' ? 'w-full max-w-5xl' : 'w-[390px]'
+              )}
+              style={{ minHeight: '600px' }}
+            >
+              <iframe
+                key={iframeKey}
+                src={`/api/preview/${site.id}`}
+                className="w-full"
+                style={{ height: '80vh', border: 'none' }}
+                title="Предпросмотр сайта"
+              />
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-3 text-gray-400 mt-20">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <p className="text-sm">Генерация сайта...</p>
+            </div>
+          )}
+        </div>
+
+        {/* ── Панель чата ── */}
+        <div className="w-80 shrink-0 border-l border-gray-200 bg-white flex flex-col">
+
+          {/* Заголовок чата */}
+          <div className="px-4 py-3 border-b border-gray-100">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="h-4 w-4 text-brand-600" />
+              <span className="font-semibold text-gray-900 text-sm">AI-редактор</span>
+            </div>
+            {/* Баланс */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                <Wallet className="h-3.5 w-3.5" />
+                <span>Баланс: <span className={cn('font-medium', balance < EDIT_COST ? 'text-red-500' : 'text-gray-700')}>{balance} ₽</span></span>
+              </div>
+              <span className="text-xs text-gray-400">{EDIT_COST} ₽ / правка</span>
+            </div>
+            {balance < EDIT_COST && (
+              <a
+                href="/dashboard/billing"
+                className="mt-2 block text-center text-xs bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors rounded-md py-1.5 font-medium"
+              >
+                Пополнить баланс →
+              </a>
             )}
-            style={{ minHeight: '600px' }}
-          >
-            <iframe
-              src={`/api/preview/${site.id}`}
-              className="w-full"
-              style={{ height: '80vh', border: 'none' }}
-              title="Предпросмотр сайта"
-            />
           </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center gap-3 text-gray-400 mt-20">
-            <Loader2 className="h-8 w-8 animate-spin" />
-            <p className="text-sm">Генерация сайта...</p>
+
+          {/* История сообщений */}
+          <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+            {messages.map((msg, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'flex',
+                  msg.role === 'user' ? 'justify-end' : 'justify-start'
+                )}
+              >
+                <div
+                  className={cn(
+                    'max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed',
+                    msg.role === 'user'
+                      ? 'bg-brand-600 text-white rounded-br-sm'
+                      : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                  )}
+                >
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+
+            {/* Индикатор загрузки */}
+            {editing && (
+              <div className="flex justify-start">
+                <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-3 py-2">
+                  <div className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
           </div>
-        )}
+
+          {/* Поле ввода */}
+          <div className="px-3 py-3 border-t border-gray-100">
+            <div className="flex gap-2 items-end">
+              <textarea
+                value={inputValue}
+                onChange={e => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Опишите правку..."
+                disabled={editing}
+                rows={2}
+                className="flex-1 resize-none text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent disabled:opacity-50 disabled:bg-gray-50"
+              />
+              <button
+                onClick={handleEdit}
+                disabled={editing || !inputValue.trim()}
+                className="shrink-0 w-9 h-9 flex items-center justify-center bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl transition-colors"
+                title="Отправить"
+              >
+                {editing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-1.5 text-center">
+              Enter — отправить · Shift+Enter — перенос строки
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Баннер демо */}
+      {/* ── Баннер демо ── */}
       {!isPaid && (
         <div className="bg-brand-50 border-t border-brand-100 px-4 py-2.5 flex items-center justify-between gap-4">
           <p className="text-sm text-brand-700">

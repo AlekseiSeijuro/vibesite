@@ -23,7 +23,7 @@ export default async function PreviewPage({ params }: Props) {
 
   const { data: profile } = await supabase
     .from('users')
-    .select('subscription_status, role')
+    .select('subscription_status, role, edit_balance')
     .eq('id', user.id)
     .single()
 
@@ -43,6 +43,7 @@ export default async function PreviewPage({ params }: Props) {
       site={site}
       isPaid={profile?.subscription_status === 'active'}
       hasCompletedOrder={!!completedOrder || isAdmin}
+      editBalance={profile?.edit_balance ?? 0}
     />
   )
 }

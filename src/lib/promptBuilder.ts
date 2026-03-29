@@ -219,6 +219,26 @@ SVG ИКОНКИ — встрой прямо в HTML:
 ОТВЕТ: ТОЛЬКО HTML код начиная с <!DOCTYPE html>. Никакого текста до или после.`
 }
 
+/**
+ * Промпт для редактирования уже сгенерированного сайта через чат.
+ * Получает текущий HTML и запрос пользователя, возвращает изменённый HTML.
+ */
+export function buildEditPrompt(currentHTML: string, userMessage: string): string {
+  return `Ты — профессиональный frontend-разработчик. Тебе дан HTML-код сайта и запрос на правку.
+
+ПРАВИЛА:
+- Внеси ТОЛЬКО то изменение, которое просит пользователь — не трогай остальное
+- Сохрани все стили, шрифты, цвета, структуру и контент которые не упомянуты в запросе
+- Верни ПОЛНЫЙ HTML-код сайта начиная строго с <!DOCTYPE html> и заканчивая </html>
+- Никакого текста, пояснений или markdown до или после HTML
+
+ЗАПРОС ПОЛЬЗОВАТЕЛЯ:
+${userMessage}
+
+HTML САЙТА:
+${currentHTML}`
+}
+
 export function hashFormData(data: WebsiteFormData): string {
   const str = JSON.stringify(data)
   let hash = 0
