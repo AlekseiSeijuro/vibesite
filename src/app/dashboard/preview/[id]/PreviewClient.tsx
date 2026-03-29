@@ -204,10 +204,9 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder }: Props
             style={{ minHeight: '600px' }}
           >
             <iframe
-              srcDoc={site.generated_code}
+              src={`/api/preview/${site.id}`}
               className="w-full"
               style={{ height: '80vh', border: 'none' }}
-              sandbox="allow-same-origin"
               title="Предпросмотр сайта"
             />
           </div>

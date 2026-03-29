@@ -7,6 +7,8 @@ import {
   sanitizeHTML,
   injectPhotos,
   addWatermark,
+  injectDomainLock,
+  minifyHTML,
 } from '@/lib/htmlUtils'
 import { generateWithClaude, SYSTEM_PROMPT } from '@/lib/openrouter'
 import { generateSubdomain } from '@/lib/utils'
@@ -237,6 +239,13 @@ export async function POST(request: Request) {
     if (subscriptionStatus === 'trial') {
       finalHTML = addWatermark(finalHTML)
     }
+
+    // Привязка к домену — сайт покажет заглушку если открыть вне beauty-site.ru
+    const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'beauty-site.ru'
+    finalHTML = injectDomainLock(finalHTML, appDomain)
+
+    // Минификация — убирает читаемость исходника
+    finalHTML = minifyHTML(finalHTML)
 
     // 10. Сохраняем
     await supabase

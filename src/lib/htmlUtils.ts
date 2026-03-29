@@ -94,3 +94,33 @@ export function addWatermark(html: string): string {
 
   return html.replace(/<\/body>/i, `${watermark}\n</body>`)
 }
+
+/**
+ * Вставляет JS-скрипт привязки к домену.
+ * Если сайт открыт не на *.beauty-site.ru — скрывает контент и показывает заглушку.
+ * Также затрудняет просмотр исходников через горячие клавиши.
+ */
+export function injectDomainLock(html: string, allowedDomain: string): string {
+  // Минифицированный скрипт — намеренно без пробелов, чтобы не привлекать внимание
+  const script = `<script>(function(){var d=window.location.hostname;var ok=d==='${allowedDomain}'||d.endsWith('.${allowedDomain}')||d==='localhost'||d.endsWith('.localhost');if(!ok){document.documentElement.style.display='none';window.addEventListener('DOMContentLoaded',function(){document.documentElement.style.display='';var b=document.body;if(b){b.innerHTML='<div style="font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f9fafb"><div style="text-align:center;padding:2rem;max-width:400px"><div style="font-size:3rem;margin-bottom:1rem">\uD83D\uDD12</div><h1 style="font-size:1.5rem;color:#1a202c;margin:0 0 .5rem">\u0421\u0430\u0439\u0442 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D</h1><p style="color:#718096;margin:0 0 1.5rem">\u042D\u0442\u043E\u0442 \u0441\u0430\u0439\u0442 \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E \u043D\u0430 \u043F\u043B\u0430\u0442\u0444\u043E\u0440\u043C\u0435 beauty-site.ru</p><a href="https://${allowedDomain}" style="display:inline-block;background:#9333ea;color:white;text-decoration:none;padding:.75rem 1.5rem;border-radius:8px;font-weight:500">\u0421\u043E\u0437\u0434\u0430\u0442\u044C \u0441\u0432\u043E\u0439 \u0441\u0430\u0439\u0442 \u2192</a></div></div>'}});document.documentElement.style.display='none'}document.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&(e.key==='u'||e.key==='U'||e.key==='s'||e.key==='S')){e.preventDefault()}})})();</script>`
+
+  // Вставляем сразу после <head> — до любого контента, чтобы сработало как можно раньше
+  return html.replace(/(<head[^>]*>)/i, `$1\n${script}`)
+}
+
+/**
+ * Минифицирует HTML: убирает комментарии, лишние пробелы и переносы строк между тегами.
+ * Делает исходник нечитаемым при просмотре через DevTools.
+ */
+export function minifyHTML(html: string): string {
+  return html
+    // Убираем HTML-комментарии (кроме условных комментариев IE вида <!--[if ...)
+    .replace(/<!--(?!\[if)[\s\S]*?-->/gi, '')
+    // Убираем переносы строк и лишние пробелы между тегами
+    .replace(/>\s+</g, '><')
+    // Убираем пробелы в начале и конце строк
+    .replace(/^\s+|\s+$/gm, '')
+    // Схлопываем несколько пробелов подряд в один (внутри атрибутов и текста)
+    .replace(/ {2,}/g, ' ')
+    .trim()
+}
