@@ -21,7 +21,15 @@ export default function Step6Photos() {
   const { formData, updateFormData, prevStep, websiteId, setWebsiteId } =
     useCreateSiteStore()
   const router = useRouter()
-  const [photos, setPhotos] = useState<UploadedPhoto[]>([])
+  // При редактировании существующего сайта — показываем уже загруженные фото
+  const [photos, setPhotos] = useState<UploadedPhoto[]>(
+    (formData.photo_urls ?? []).map((url) => ({
+      id: Math.random().toString(36).slice(2),
+      url,
+      preview: url,
+      uploading: false,
+    }))
+  )
   const [submitting, setSubmitting] = useState(false)
 
   const uploadFile = async (file: File): Promise<string | null> => {
