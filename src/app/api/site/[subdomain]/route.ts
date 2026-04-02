@@ -16,7 +16,7 @@ export async function GET(
     .from('websites')
     .select('generated_code, status')
     .eq('subdomain', params.subdomain)
-    .eq('status', 'published')
+    .in('status', ['demo', 'published'])
     .single()
 
   console.log('[site] Result:', { found: !!site, error: error?.message })

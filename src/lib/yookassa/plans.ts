@@ -28,7 +28,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
     name: 'Свой домен + исходники',
     priceMonthly: null,
     priceYearly: null,
-    priceOnetime: 3500,
+    priceOnetime: 2999,
   },
 }
 

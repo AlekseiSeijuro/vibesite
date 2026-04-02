@@ -51,6 +51,17 @@ export async function POST(request: Request) {
 
   const isPaid = profile?.subscription_status === 'active'
 
+  // Блокируем публикацию на поддомене для бесплатного тарифа
+  if (!isPaid) {
+    return NextResponse.json(
+      {
+        error: 'Публикация на поддомене доступна только на платном тарифе «Поддомен».',
+        code: 'SUBSCRIPTION_REQUIRED',
+      },
+      { status: 403 }
+    )
+  }
+
   // Загружаем HTML в S3 (для публичной отдачи по поддомену)
   try {
     const htmlBuffer = Buffer.from(site.generated_code, 'utf-8')

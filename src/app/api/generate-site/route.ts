@@ -60,21 +60,20 @@ export async function POST(request: Request) {
       console.warn('[generate-site] Could not fetch profile, using trial:', e)
     }
 
-    // 4. Rate limit для демо
-    if (subscriptionStatus === 'trial') {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-
+    // 4. Лимит для демо — не более 3 сайтов всего
+    // Перегенерация существующего сайта (websiteId передан) — разрешена
+    if (subscriptionStatus === 'trial' && !websiteId) {
       const { count } = await supabase
-        .from('generation_logs')
+        .from('websites')
         .select('*', { count: 'exact', head: true })
-        .gte('created_at', today.toISOString())
+        .eq('user_id', user.id)
+        .neq('status', 'archived')
 
-      if ((count ?? 0) >= 3) {
+      if ((count ?? 0) >= 1) {
         return NextResponse.json(
           {
-            error: 'Достигнут дневной лимит генераций (3 в сутки). Перейдите на платный тариф.',
-            code: 'RATE_LIMIT',
+            error: 'На демо-тарифе можно создать только 1 сайт. Перейдите на платный тариф для создания новых сайтов.',
+            code: 'SITE_LIMIT',
           },
           { status: 429 }
         )
