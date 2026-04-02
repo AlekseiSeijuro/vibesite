@@ -35,18 +35,14 @@ interface ChatMessage {
 }
 
 const EDIT_COST = 50
+const DESKTOP_RENDER_WIDTH = 1280
 
 function getSiteUrl(subdomain: string | null, status: string): string | null {
   if (!subdomain || status !== 'published') return null
-
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'vibesite.ru'
-
   const isVercel = appUrl.includes('vercel.app') || appUrl.includes('localhost')
-  if (isVercel) {
-    return `${appUrl}/api/site/${subdomain}`
-  }
-
+  if (isVercel) return `${appUrl}/api/site/${subdomain}`
   return `https://${subdomain}.${appDomain}`
 }
 
@@ -62,8 +58,11 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
   const [siteUrl, setSiteUrl] = useState<string | null>(
     getSiteUrl(site.subdomain, site.status)
   )
-  // ключ для принудительной перезагрузки iframe после правки
   const [iframeKey, setIframeKey] = useState(0)
+
+  // refs для масштабирования desktop-режима
+  const containerRef = useRef<HTMLDivElement>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
   // --- чат ---
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -76,6 +75,31 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
   const [editing, setEditing] = useState(false)
   const [balance, setBalance] = useState(initialBalance)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Масштабирование iframe под контейнер в desktop-режиме.
+  // Пересчитывается при: смене viewMode, смене iframeKey, ресайзе окна.
+  useEffect(() => {
+    if (viewMode !== 'desktop') return
+
+    const applyScale = () => {
+      const container = containerRef.current
+      const iframe = iframeRef.current
+      if (!container || !iframe) return
+      const scale = container.offsetWidth / DESKTOP_RENDER_WIDTH
+      iframe.style.width = `${DESKTOP_RENDER_WIDTH}px`
+      iframe.style.height = `${container.offsetHeight / scale}px`
+      iframe.style.transform = `scale(${scale})`
+      iframe.style.transformOrigin = 'top left'
+    }
+
+    // небольшая задержка чтобы DOM успел отрисоваться после смены viewMode
+    const t = setTimeout(applyScale, 10)
+    window.addEventListener('resize', applyScale)
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('resize', applyScale)
+    }
+  }, [viewMode, iframeKey])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -130,7 +154,6 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
     const message = inputValue.trim()
     if (!message || editing) return
 
-    // Проверка баланса на клиенте — покажем ошибку сразу, не дожидаясь сервера
     if (balance < EDIT_COST) {
       setMessages(prev => [
         ...prev,
@@ -157,7 +180,6 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
       const data = await res.json()
 
       if (!res.ok) {
-        // Специальная обработка недостатка баланса с сервера
         if (data.code === 'INSUFFICIENT_BALANCE') {
           setMessages(prev => [
             ...prev,
@@ -171,7 +193,6 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
         throw new Error(data.error)
       }
 
-      // Успех — обновляем баланс и перезагружаем iframe
       setBalance(data.newBalance)
       setIframeKey(k => k + 1)
       setMessages(prev => [
@@ -209,7 +230,6 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
 
       {/* ── Панель управления ── */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 flex-wrap">
-
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-gray-900 truncate">{masterName}</p>
           {siteUrl && (
@@ -296,23 +316,34 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
       {/* ── Основная область: iframe + чат ── */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Превью сайта */}
-        <div className="flex-1 bg-gray-200 flex items-start justify-center overflow-auto p-4">
+        {/* ── Превью сайта ── */}
+        <div className="flex-1 bg-gray-100 flex items-start justify-center overflow-hidden p-3">
           {site.generated_code ? (
             <div
+              ref={containerRef}
               className={cn(
-                'bg-white shadow-xl rounded-lg overflow-hidden transition-all',
-                viewMode === 'desktop' ? 'w-full max-w-5xl' : 'w-[390px]'
+                'relative bg-white shadow-xl rounded-lg overflow-hidden h-full',
+                viewMode === 'desktop' ? 'w-full' : 'w-[390px]'
               )}
-              style={{ minHeight: '600px' }}
             >
-              <iframe
-                key={iframeKey}
-                src={`/api/preview/${site.id}`}
-                className="w-full"
-                style={{ height: '80vh', border: 'none' }}
-                title="Предпросмотр сайта"
-              />
+              {viewMode === 'desktop' ? (
+                // iframe рендерится в DESKTOP_RENDER_WIDTH и масштабируется через transform: scale
+                <iframe
+                  ref={iframeRef}
+                  key={`desktop-${iframeKey}`}
+                  src={`/api/preview/${site.id}`}
+                  style={{ border: 'none', display: 'block', position: 'absolute', top: 0, left: 0 }}
+                  title="Предпросмотр сайта"
+                />
+              ) : (
+                // Mobile: обычный iframe 390px, старые transform-стили не применяются
+                <iframe
+                  key={`mobile-${iframeKey}`}
+                  src={`/api/preview/${site.id}`}
+                  style={{ border: 'none', display: 'block', width: '100%', height: '100%' }}
+                  title="Предпросмотр сайта"
+                />
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center gap-3 text-gray-400 mt-20">
@@ -325,13 +356,12 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
         {/* ── Панель чата ── */}
         <div className="w-80 shrink-0 border-l border-gray-200 bg-white flex flex-col">
 
-          {/* Заголовок чата */}
+          {/* Заголовок */}
           <div className="px-4 py-3 border-b border-gray-100">
             <div className="flex items-center gap-2 mb-1">
               <Sparkles className="h-4 w-4 text-brand-600" />
               <span className="font-semibold text-gray-900 text-sm">AI-редактор</span>
             </div>
-            {/* Баланс */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-xs text-gray-500">
                 <Wallet className="h-3.5 w-3.5" />
@@ -352,13 +382,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
           {/* История сообщений */}
           <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
             {messages.map((msg, i) => (
-              <div
-                key={i}
-                className={cn(
-                  'flex',
-                  msg.role === 'user' ? 'justify-end' : 'justify-start'
-                )}
-              >
+              <div key={i} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
                 <div
                   className={cn(
                     'max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed',
@@ -372,7 +396,6 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
               </div>
             ))}
 
-            {/* Индикатор загрузки */}
             {editing && (
               <div className="flex justify-start">
                 <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-3 py-2">
@@ -406,11 +429,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
                 className="shrink-0 w-9 h-9 flex items-center justify-center bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl transition-colors"
                 title="Отправить"
               >
-                {editing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
+                {editing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </button>
             </div>
             <p className="text-xs text-gray-400 mt-1.5 text-center">
