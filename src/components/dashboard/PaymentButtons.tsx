@@ -18,9 +18,9 @@ interface Props {
 }
 
 const PAYMENT_OPTIONS = [
-  { key: 'subdomain_monthly', label: 'Поддомен — месяц', desc: 'Без водяного знака, свой поддомен' },
-  { key: 'subdomain_yearly',  label: 'Поддомен — год',   desc: `Экономия ${formatPrice(700 * 12 - 6000)}` },
-  { key: 'custom_domain',     label: 'Свой домен',        desc: 'Разово — домен + исходники' },
+  { key: 'subdomain_monthly', label: 'Поддомен — месяц', desc: '699 ₽/мес — без водяного знака, свой поддомен' },
+  { key: 'subdomain_yearly',  label: 'Поддомен — год',   desc: `6 000 ₽/год — экономия ${formatPrice(699 * 12 - 6000)}` },
+  { key: 'custom_domain',     label: 'Свой домен',        desc: 'Разово — исходники + помощь с публикацией на ваш домен' },
 ]
 
 export default function PaymentButtons({ sites }: Props) {
