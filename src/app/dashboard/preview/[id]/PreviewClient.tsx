@@ -59,6 +59,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
     getSiteUrl(site.subdomain, site.status)
   )
   const [iframeKey, setIframeKey] = useState(0)
+  const [mobileTab, setMobileTab] = useState<'preview' | 'chat'>('preview')
 
   // refs для масштабирования desktop-режима
   const containerRef = useRef<HTMLDivElement>(null)
@@ -314,10 +315,42 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
       </div>
 
       {/* ── Основная область: iframe + чат ── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-col flex-1 overflow-hidden">
+
+        {/* Вкладки только на мобильных */}
+        <div className="flex md:hidden border-b border-gray-200 bg-white shrink-0">
+          <button
+            onClick={() => setMobileTab('preview')}
+            className={cn(
+              'flex-1 py-2.5 text-sm font-medium transition-colors',
+              mobileTab === 'preview'
+                ? 'text-brand-600 border-b-2 border-brand-600'
+                : 'text-gray-500'
+            )}
+          >
+            Предпросмотр
+          </button>
+          <button
+            onClick={() => setMobileTab('chat')}
+            className={cn(
+              'flex-1 py-2.5 text-sm font-medium transition-colors',
+              mobileTab === 'chat'
+                ? 'text-brand-600 border-b-2 border-brand-600'
+                : 'text-gray-500'
+            )}
+          >
+            AI-редактор
+          </button>
+        </div>
+
+        {/* Основной layout */}
+        <div className="flex flex-1 overflow-hidden">
 
         {/* ── Превью сайта ── */}
-        <div className="flex-1 bg-gray-100 flex items-start justify-center overflow-hidden p-3">
+        <div className={cn(
+          'flex-1 bg-gray-100 flex items-start justify-center overflow-hidden p-3',
+          mobileTab === 'chat' ? 'hidden md:flex' : 'flex'
+        )}>
           {site.generated_code ? (
             <div
               ref={containerRef}
@@ -354,7 +387,10 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
         </div>
 
         {/* ── Панель чата ── */}
-        <div className="w-80 shrink-0 border-l border-gray-200 bg-white flex flex-col">
+        <div className={cn(
+          'w-full md:w-80 shrink-0 border-l border-gray-200 bg-white flex flex-col',
+          mobileTab === 'preview' ? 'hidden md:flex' : 'flex'
+        )}>
 
           {/* Заголовок */}
           <div className="px-4 py-3 border-b border-gray-100">
@@ -437,6 +473,8 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
             </p>
           </div>
         </div>
+        </div>
+        {/* конец основного layout */}
       </div>
 
       {/* ── Баннер демо ── */}
