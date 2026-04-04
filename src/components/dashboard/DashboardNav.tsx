@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Sparkles, LayoutDashboard, Settings, LogOut, CreditCard, Home } from 'lucide-react'
+import { Sparkles, LayoutDashboard, Settings, LogOut, CreditCard, Home, MessageCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { User } from '@/types'
+import { useState, useEffect } from 'react'
 
 interface DashboardNavProps {
   user: User | null
@@ -14,6 +15,7 @@ interface DashboardNavProps {
 const navLinks = [
   { href: '/dashboard', label: 'Мои сайты', icon: LayoutDashboard, exact: true },
   { href: '/dashboard/billing', label: 'Подписка', icon: CreditCard },
+  { href: '/dashboard/support', label: 'Поддержка', icon: MessageCircle },
   { href: '/dashboard/settings', label: 'Настройки', icon: Settings },
 ]
 
@@ -21,6 +23,33 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  // Загружаем счётчик непрочитанных и подписываемся на обновления
+  useEffect(() => {
+    const loadUnread = async () => {
+      const { data } = await supabase
+        .from('support_chats')
+        .select('unread_by_user')
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id ?? '')
+        .single()
+      setUnreadCount(data?.unread_by_user ?? 0)
+    }
+    loadUnread()
+
+    const channel = supabase
+      .channel('nav-unread')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'support_chats',
+      }, (payload) => {
+        setUnreadCount((payload.new as { unread_by_user: number }).unread_by_user ?? 0)
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -59,6 +88,11 @@ export default function DashboardNav({ user }: DashboardNavProps) {
               >
                 <link.icon className="h-4 w-4" />
                 {link.label}
+                {link.href === '/dashboard/support' && unreadCount > 0 && (
+                  <span className="ml-1 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 text-white text-xs rounded-full px-1">
+                    {unreadCount}
+                  </span>
+                )}
               </Link>
             ))}
           </nav>
