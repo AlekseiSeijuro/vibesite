@@ -19,7 +19,7 @@ interface Props {
 
 const PAYMENT_OPTIONS = [
   { key: 'subdomain_monthly', label: 'Поддомен — месяц', desc: '699 ₽/мес — без водяного знака, свой поддомен' },
-  { key: 'subdomain_yearly',  label: 'Поддомен — год',   desc: `6 000 ₽/год — экономия ${formatPrice(699 * 12 - 6000)}` },
+  { key: 'subdomain_yearly',  label: 'Поддомен — год',   desc: `5 999 ₽/год — экономия ${formatPrice(699 * 12 - 5999)}` },
   { key: 'custom_domain',     label: 'Свой домен',        desc: 'Разово — исходники + помощь с публикацией на ваш домен' },
 ]
 

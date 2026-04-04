@@ -25,7 +25,7 @@ const PLANS = [
     slug: 'subdomain',
     name: 'Поддомен',
     priceMonthly: 699,
-    priceYearly: 6000,
+    priceYearly: 5999,
     priceOnetime: null,
     description: 'Для активных мастеров',
     features: [

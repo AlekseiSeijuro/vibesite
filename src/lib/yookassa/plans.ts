@@ -12,7 +12,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
   subdomain_monthly: {
     slug: 'subdomain',
     name: 'Поддомен (месяц)',
-    priceMonthly: 700,
+    priceMonthly: 699,
     priceYearly: null,
     priceOnetime: null,
   },
@@ -20,7 +20,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
     slug: 'subdomain',
     name: 'Поддомен (год)',
     priceMonthly: null,
-    priceYearly: 6000,
+    priceYearly: 5999,
     priceOnetime: null,
   },
   custom_domain: {
