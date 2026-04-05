@@ -114,7 +114,7 @@ export default function HomePage() {
             © {new Date().getFullYear()} Vibesite. Все права защищены.
           </p>
           <p className="text-sm text-gray-400">
-            ИП Сейджуро · ИНН 575213448940
+            ИНН 575213448940
           </p>
           <div className="flex flex-col sm:flex-row items-center gap-4 text-sm text-gray-400">
             <a href="tel:+79103025790" className="hover:text-gray-600 transition-colors">
