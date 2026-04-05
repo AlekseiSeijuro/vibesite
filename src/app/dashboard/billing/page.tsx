@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { CreditCard, CheckCircle, Clock, XCircle } from 'lucide-react'
 import { formatDate, formatPrice } from '@/lib/utils'
 import PaymentButtons from '@/components/dashboard/PaymentButtons'
+import BalanceTopup from '@/components/dashboard/BalanceTopup'
 import type { Subscription } from '@/types'
 
 function StatusIcon({ status }: { status: string }) {
@@ -17,28 +18,17 @@ export default async function BillingPage() {
 
   const { data: profile } = await supabase
     .from('users')
-    .select('subscription_status, subscription_ends_at')
+    .select('subscription_status, subscription_ends_at, edit_balance')
     .eq('id', user!.id)
     .single()
 
   const { data: subscriptions } = await supabase
     .from('subscriptions')
-    .select('*, websites(meta_data)')
+    .select('*')
     .eq('user_id', user!.id)
     .order('created_at', { ascending: false })
 
-  // Получаем первый опубликованный/демо сайт для кнопок оплаты
-  const { data: sites } = await supabase
-    .from('websites')
-    .select('id, meta_data, status')
-    .eq('user_id', user!.id)
-    .in('status', ['demo', 'published', 'draft'])
-    .order('created_at', { ascending: false })
-    .limit(5)
-
-  const subs = (subscriptions ?? []) as (Subscription & {
-    websites: { meta_data: { master_name?: string } } | null
-  })[]
+  const subs = (subscriptions ?? []) as Subscription[]
 
   const statusLabel: Record<string, string> = {
     trial:   'Демо (бесплатно)',
@@ -89,10 +79,11 @@ export default async function BillingPage() {
         </div>
 
         {/* Кнопки оплаты — только если не оплачено */}
-        {!isPaid && (
-          <PaymentButtons sites={sites ?? []} />
-        )}
+        {!isPaid && <PaymentButtons />}
       </div>
+
+      {/* Пополнение баланса AI-редактора */}
+      <BalanceTopup currentBalance={profile?.edit_balance ?? 0} />
 
       {/* История платежей */}
       <div className="card">
@@ -105,9 +96,7 @@ export default async function BillingPage() {
               <div key={sub.id} className="py-3 flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-medium text-gray-900">
-                    {sub.websites?.meta_data?.master_name ?? 'Сайт'}
-                    {' — '}
-                    {sub.plan === 'subdomain' ? 'Поддомен' : 'Свой домен'}
+                    {sub.plan === 'subdomain' ? 'Тариф Поддомен' : 'Тариф Свой домен'}
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {formatDate(sub.created_at)}

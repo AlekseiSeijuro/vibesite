@@ -2,7 +2,6 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { verifyWebhookPayment } from '@/lib/yookassa/client'
 import { getPlanEndDate, PLAN_CONFIGS } from '@/lib/yookassa/plans'
-import { addWatermark } from '@/lib/htmlUtils'
 
 /**
  * Webhook от ЮKassa
@@ -10,11 +9,8 @@ import { addWatermark } from '@/lib/htmlUtils'
  * Как настроить:
  * 1. Войти в личный кабинет ЮKassa
  * 2. Настройки → Уведомления → HTTP-уведомления
- * 3. Указать URL: https://твой-домен.ru/api/payments/webhook
+ * 3. Указать URL: https://beauty-site.ru/api/payments/webhook
  * 4. Выбрать события: payment.succeeded, payment.canceled
- *
- * ЮKassa не подписывает уведомления — поэтому мы перепроверяем
- * платёж через API перед обновлением БД (защита от подделки)
  */
 export async function POST(request: Request) {
   let body: { event: string; object: { id: string } }
@@ -26,10 +22,8 @@ export async function POST(request: Request) {
   }
 
   const { event, object: paymentObject } = body
-
   console.log('[webhook] Event:', event, 'Payment:', paymentObject?.id)
 
-  // Нас интересует только успешный платёж
   if (event !== 'payment.succeeded') {
     return NextResponse.json({ ok: true })
   }
@@ -39,7 +33,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Missing payment id' }, { status: 400 })
   }
 
-  // Перепроверяем платёж через API ЮKassa (защита от подделки)
   let payment
   try {
     payment = await verifyWebhookPayment(paymentId)
@@ -49,26 +42,51 @@ export async function POST(request: Request) {
   }
 
   if (payment.status !== 'succeeded') {
-    console.log('[webhook] Payment not succeeded, ignoring')
     return NextResponse.json({ ok: true })
   }
 
-  // Извлекаем метаданные
-  const { userId, websiteId, planKey, planSlug } = payment.metadata ?? {}
+  const { userId, planKey, planSlug, type, edits } = payment.metadata ?? {}
 
-  if (!userId || !websiteId || !planKey) {
-    console.error('[webhook] Missing metadata:', payment.metadata)
+  if (!userId) {
+    console.error('[webhook] Missing userId in metadata:', payment.metadata)
     return NextResponse.json({ error: 'Missing metadata' }, { status: 400 })
   }
 
   const supabase = await createAdminClient()
 
+  // Пополнение баланса AI-редактора
+  if (type === 'balance_topup') {
+    const editsCount = parseInt(edits ?? '0', 10)
+
+    const { data: profile } = await supabase
+      .from('users')
+      .select('edit_balance')
+      .eq('id', userId)
+      .single()
+
+    const newBalance = (profile?.edit_balance ?? 0) + editsCount * 49
+
+    await supabase
+      .from('users')
+      .update({ edit_balance: newBalance })
+      .eq('id', userId)
+
+    console.log('[webhook] Balance topup:', userId, '+', editsCount * 49, '-> balance:', newBalance)
+    return NextResponse.json({ ok: true })
+  }
+
+  // Оплата подписки — тариф применяется к аккаунту
   try {
+    if (!planKey || !PLAN_CONFIGS[planKey]) {
+      console.error('[webhook] Invalid planKey:', planKey)
+      return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
+    }
+
     const plan = PLAN_CONFIGS[planKey]
     const endDate = getPlanEndDate(planKey)
     const amount = Math.round(parseFloat(payment.amount.value))
 
-    // 1. Обновляем статус пользователя
+    // Обновляем статус подписки пользователя
     await supabase
       .from('users')
       .update({
@@ -77,35 +95,30 @@ export async function POST(request: Request) {
       })
       .eq('id', userId)
 
-    // 2. Обновляем сайт
-    await supabase
+    // Убираем watermark со всех сайтов пользователя
+    const { data: sites } = await supabase
       .from('websites')
-      .update({ subscription_plan: planSlug ?? plan.slug })
-      .eq('id', websiteId)
+      .select('id, generated_code')
+      .eq('user_id', userId)
+      .not('generated_code', 'is', null)
 
-    // 3. Убираем watermark из сгенерированного кода
-    const { data: site } = await supabase
-      .from('websites')
-      .select('generated_code')
-      .eq('id', websiteId)
-      .single()
-
-    if (site?.generated_code) {
-      // Удаляем watermark-блок из HTML
-      const cleanHTML = site.generated_code.replace(
-        /<div[^>]*position:fixed[^>]*>[\s\S]*?Создано на Vibesite[\s\S]*?<\/div>/gi,
-        ''
-      )
-      await supabase
-        .from('websites')
-        .update({ generated_code: cleanHTML })
-        .eq('id', websiteId)
+    if (sites && sites.length > 0) {
+      for (const site of sites) {
+        if (!site.generated_code) continue
+        const cleanHTML = site.generated_code.replace(
+          /<div[^>]*position:fixed[^>]*>[\s\S]*?Vibesite[\s\S]*?<\/div>/gi,
+          ''
+        )
+        await supabase
+          .from('websites')
+          .update({ generated_code: cleanHTML })
+          .eq('id', site.id)
+      }
     }
 
-    // 4. Создаём запись подписки
+    // Создаём запись подписки
     await supabase.from('subscriptions').insert({
       user_id: userId,
-      website_id: websiteId,
       plan: planSlug ?? plan.slug,
       start_date: new Date().toISOString(),
       end_date: endDate?.toISOString() ?? null,
@@ -113,7 +126,7 @@ export async function POST(request: Request) {
       payment_id: paymentId,
     })
 
-    console.log('[webhook] Payment processed successfully:', paymentId)
+    console.log('[webhook] Subscription processed:', paymentId)
     return NextResponse.json({ ok: true })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)

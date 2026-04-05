@@ -45,7 +45,6 @@ export interface Photo {
 export interface Subscription {
   id: string
   user_id: string
-  website_id: string
   plan: SubscriptionPlan
   start_date: string
   end_date: string

@@ -10,7 +10,7 @@ import {
 } from '@/lib/htmlUtils'
 import { generateWithClaude } from '@/lib/openrouter'
 
-const EDIT_COST = 50 // рублей за одну правку
+const EDIT_COST = 49 // рублей за одну правку
 const EDIT_SYSTEM_PROMPT =
   'Ты — профессиональный frontend-разработчик. ' +
   'Вносишь точечные правки в HTML-код сайта строго по запросу пользователя. ' +

@@ -34,7 +34,7 @@ interface ChatMessage {
   text: string
 }
 
-const EDIT_COST = 50
+const EDIT_COST = 49
 const DESKTOP_RENDER_WIDTH = 1280
 
 function getSiteUrl(subdomain: string | null, status: string): string | null {

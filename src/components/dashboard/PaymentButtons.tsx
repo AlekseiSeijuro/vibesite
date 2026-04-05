@@ -2,20 +2,9 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { isYookassaConfigured } from '@/lib/yookassa/client'
 import Button from '@/components/ui/Button'
 import { formatPrice } from '@/lib/utils'
-import { PLAN_CONFIGS, getPlanAmount } from '@/lib/yookassa/plans'
-
-interface Site {
-  id: string
-  meta_data: { master_name?: string } | null
-  status: string
-}
-
-interface Props {
-  sites: Site[]
-}
+import { getPlanAmount } from '@/lib/yookassa/plans'
 
 const PAYMENT_OPTIONS = [
   { key: 'subdomain_monthly', label: 'Поддомен — месяц', desc: '699 ₽/мес — без водяного знака, свой поддомен' },
@@ -23,27 +12,16 @@ const PAYMENT_OPTIONS = [
   { key: 'custom_domain',     label: 'Свой домен',        desc: 'Разово — исходники + помощь с публикацией на ваш домен' },
 ]
 
-export default function PaymentButtons({ sites }: Props) {
+export default function PaymentButtons() {
   const [loading, setLoading] = useState<string | null>(null)
-  const [selectedSite, setSelectedSite] = useState(sites[0]?.id ?? '')
-
-  // Если ЮKassa не настроена — показываем заглушку
-  const configured = typeof window !== 'undefined'
-    ? true // на клиенте всегда показываем UI
-    : false
 
   const handlePay = async (planKey: string) => {
-    if (!selectedSite) {
-      toast.error('Выберите сайт для оплаты')
-      return
-    }
-
     setLoading(planKey)
     try {
       const res = await fetch('/api/payments/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planKey, websiteId: selectedSite }),
+        body: JSON.stringify({ planKey }),
       })
 
       const data = await res.json()
@@ -53,11 +31,8 @@ export default function PaymentButtons({ sites }: Props) {
         return
       }
 
-      if (!res.ok) {
-        throw new Error(data.error ?? 'Ошибка')
-      }
+      if (!res.ok) throw new Error(data.error ?? 'Ошибка')
 
-      // Редирект на страницу оплаты ЮKassa
       window.location.href = data.confirmationUrl
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Ошибка оплаты')
@@ -66,37 +41,10 @@ export default function PaymentButtons({ sites }: Props) {
     }
   }
 
-  if (sites.length === 0) {
-    return (
-      <p className="text-sm text-gray-400 text-center py-4">
-        Сначала создайте сайт, затем выберите тариф
-      </p>
-    )
-  }
-
   return (
     <div className="space-y-4">
       <p className="text-sm font-medium text-gray-700">Оформить подписку</p>
 
-      {/* Выбор сайта если несколько */}
-      {sites.length > 1 && (
-        <div>
-          <label className="label">Для какого сайта</label>
-          <select
-            className="input"
-            value={selectedSite}
-            onChange={(e) => setSelectedSite(e.target.value)}
-          >
-            {sites.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.meta_data?.master_name ?? 'Без названия'}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Варианты оплаты */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {PAYMENT_OPTIONS.map((opt) => (
           <button

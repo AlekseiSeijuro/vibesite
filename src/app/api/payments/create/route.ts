@@ -22,43 +22,27 @@ export async function POST(request: Request) {
   }
 
   let planKey: string
-  let websiteId: string
 
   try {
     const body = await request.json()
     planKey = body.planKey
-    websiteId = body.websiteId
-    if (!planKey || !websiteId) throw new Error('Missing fields')
+    if (!planKey) throw new Error('Missing planKey')
     if (!PLAN_CONFIGS[planKey]) throw new Error('Invalid plan')
   } catch {
     return NextResponse.json({ error: 'Некорректные данные' }, { status: 400 })
   }
 
-  const { data: site } = await supabase
-    .from('websites')
-    .select('id, meta_data')
-    .eq('id', websiteId)
-    .eq('user_id', user.id)
-    .single()
-
-  if (!site) {
-    return NextResponse.json({ error: 'Сайт не найден' }, { status: 404 })
-  }
-
   const amount = getPlanAmount(planKey)
-  const masterName =
-    (site.meta_data as { master_name?: string })?.master_name ?? 'сайт'
   const plan = PLAN_CONFIGS[planKey]
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
   try {
     const payment = await createPayment({
       amount,
-      description: `Vibesite — ${plan.name} для "${masterName}"`,
+      description: `Vibesite — ${plan.name}`,
       returnUrl: `${appUrl}/dashboard/billing?payment_status=success`,
       metadata: {
         userId: user.id,
-        websiteId,
         planKey,
         planSlug: plan.slug,
       },
