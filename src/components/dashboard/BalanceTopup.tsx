@@ -4,12 +4,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Sparkles, Loader2 } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
-
-const PACKAGES = [
-  { id: 'topup_5',  edits: 5,  amount: 245,  popular: false },
-  { id: 'topup_10', edits: 10, amount: 490,  popular: true  },
-  { id: 'topup_20', edits: 20, amount: 980,  popular: false },
-]
+import { TOPUP_PACKAGES } from '@/lib/topupPackages'
 
 interface Props {
   currentBalance: number
@@ -64,7 +59,9 @@ export default function BalanceTopup({ currentBalance }: Props) {
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {PACKAGES.map((pkg) => (
+        {TOPUP_PACKAGES.map((pkg, i) => {
+          const popular = i === 1
+          return (
           <button
             key={pkg.id}
             onClick={() => handleTopup(pkg.id)}
@@ -91,7 +88,8 @@ export default function BalanceTopup({ currentBalance }: Props) {
               </div>
             )}
           </button>
-        ))}
+          )
+        })}
       </div>
 
       <p className="text-xs text-gray-400 mt-4">

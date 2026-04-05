@@ -1,13 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { createPayment, isYookassaConfigured } from '@/lib/yookassa/client'
-
-// Пакеты пополнения баланса
-export const TOPUP_PACKAGES = [
-  { id: 'topup_5',  edits: 5,  amount: 245,  label: '5 правок' },
-  { id: 'topup_10', edits: 10, amount: 490,  label: '10 правок' },
-  { id: 'topup_20', edits: 20, amount: 980,  label: '20 правок' },
-]
+import { TOPUP_PACKAGES } from '@/lib/topupPackages'
 
 export async function POST(request: Request) {
   if (!isYookassaConfigured()) {
@@ -61,6 +55,7 @@ export async function POST(request: Request) {
     })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
+    console.error('[balance/topup] Error:', msg)
     return NextResponse.json({ error: 'Ошибка создания платежа' }, { status: 500 })
   }
 }
