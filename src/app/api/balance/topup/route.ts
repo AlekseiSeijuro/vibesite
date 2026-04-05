@@ -43,8 +43,8 @@ export async function POST(request: Request) {
         userId: user.id,
         type: 'balance_topup',
         packageId: pkg.id,
-        edits: pkg.edits,
-        amount: pkg.amount,
+        edits: String(pkg.edits),
+        amount: String(pkg.amount),
       },
     })
 
