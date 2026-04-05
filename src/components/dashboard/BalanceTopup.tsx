@@ -67,12 +67,12 @@ export default function BalanceTopup({ currentBalance }: Props) {
             onClick={() => handleTopup(pkg.id)}
             disabled={!!loading}
             className={`relative p-4 rounded-xl border-2 text-left transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-              pkg.popular
+              popular
                 ? 'border-brand-400 bg-brand-50 hover:bg-brand-100'
                 : 'border-gray-200 hover:border-brand-300 hover:bg-brand-50'
             }`}
           >
-            {pkg.popular && (
+            {popular && (
               <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-brand-600 text-white text-xs font-semibold px-2.5 py-0.5 rounded-full">
                 Выгодно
               </span>
