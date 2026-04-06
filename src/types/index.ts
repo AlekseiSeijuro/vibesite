@@ -46,8 +46,9 @@ export interface Subscription {
   id: string
   user_id: string
   plan: SubscriptionPlan
+  type: 'subscription' | 'balance_topup'
   start_date: string
-  end_date: string
+  end_date: string | null
   amount: number
   payment_id: string | null
   created_at: string

@@ -103,7 +103,9 @@ export default async function BillingPage() {
               <div key={sub.id} className="py-3 flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-medium text-gray-900">
-                    {sub.plan === 'subdomain' ? 'Тариф Поддомен' : 'Тариф Свой домен'}
+                    {sub.type === 'balance_topup'
+                      ? 'AI-редактор — пополнение баланса'
+                      : sub.plan === 'subdomain' ? 'Тариф Поддомен' : 'Тариф Свой домен'}
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {formatDate(sub.created_at)}
