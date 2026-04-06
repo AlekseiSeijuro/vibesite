@@ -4,6 +4,8 @@ import { CreditCard, CheckCircle, Clock, XCircle } from 'lucide-react'
 import { formatDate, formatPrice } from '@/lib/utils'
 import PaymentButtons from '@/components/dashboard/PaymentButtons'
 import BalanceTopup from '@/components/dashboard/BalanceTopup'
+import BillingNotifications from '@/components/dashboard/BillingNotifications'
+import { Suspense } from 'react'
 import type { Subscription } from '@/types'
 
 function StatusIcon({ status }: { status: string }) {
@@ -44,6 +46,11 @@ export default async function BillingPage() {
         <h1 className="text-2xl font-bold text-gray-900">Подписка</h1>
         <p className="text-gray-500 text-sm mt-1">Управление тарифом и история платежей</p>
       </div>
+
+      {/* Уведомления об оплате и тестовый баннер */}
+      <Suspense fallback={null}>
+        <BillingNotifications />
+      </Suspense>
 
       {/* Текущий тариф */}
       <div className="card">

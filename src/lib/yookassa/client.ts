@@ -62,10 +62,11 @@ export interface YookassaPayment {
 }
 
 export interface CreatePaymentParams {
-  amount: number          // в рублях
+  amount: number
   description: string
-  returnUrl: string       // куда вернуть после оплаты
-  metadata?: Record<string, string>  // произвольные данные (websiteId, userId, plan)
+  returnUrl: string
+  cancelUrl?: string
+  metadata?: Record<string, string>
 }
 
 // ============================================================
@@ -86,10 +87,11 @@ export async function createPayment(
     confirmation: {
       type: 'redirect',
       return_url: params.returnUrl,
+      ...(params.cancelUrl ? { cancel_url: params.cancelUrl } : {}),
     },
     description: params.description,
     metadata: params.metadata ?? {},
-    capture: true, // автоматически подтверждать платёж
+    capture: true,
   }
 
   const response = await fetch(`${YOOKASSA_API}/payments`, {

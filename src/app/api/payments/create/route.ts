@@ -41,6 +41,7 @@ export async function POST(request: Request) {
       amount,
       description: `Vibesite — ${plan.name}`,
       returnUrl: `${appUrl}/dashboard/billing?payment_status=success`,
+      cancelUrl: `${appUrl}/dashboard/billing?payment_status=canceled`,
       metadata: {
         userId: user.id,
         planKey,
