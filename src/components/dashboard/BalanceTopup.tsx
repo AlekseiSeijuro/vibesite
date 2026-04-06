@@ -74,7 +74,7 @@ export default function BalanceTopup({ currentBalance }: Props) {
           >
             {popular && (
               <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-brand-600 text-white text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                Выгодно
+                Популярно
               </span>
             )}
             <p className="font-semibold text-gray-900">{pkg.edits} правок</p>
