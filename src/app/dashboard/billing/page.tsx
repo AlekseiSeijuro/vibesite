@@ -85,8 +85,8 @@ export default async function BillingPage() {
           </Link>
         </div>
 
-        {/* Кнопки оплаты — только если не оплачено */}
-        {!isPaid && <PaymentButtons />}
+        {/* Кнопки оплаты — всегда показываем, но если isPaid — только свой домен */}
+        <PaymentButtons isPaid={isPaid} />
       </div>
 
       {/* Пополнение баланса AI-редактора */}

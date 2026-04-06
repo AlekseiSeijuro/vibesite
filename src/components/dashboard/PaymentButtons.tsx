@@ -12,7 +12,7 @@ const PAYMENT_OPTIONS = [
   { key: 'custom_domain',     label: 'Свой домен',        desc: 'Разово — исходники + помощь с публикацией на ваш домен' },
 ]
 
-export default function PaymentButtons() {
+export default function PaymentButtons({ isPaid = false }: { isPaid?: boolean }) {
   const [loading, setLoading] = useState<string | null>(null)
 
   const handlePay = async (planKey: string) => {
@@ -43,10 +43,14 @@ export default function PaymentButtons() {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm font-medium text-gray-700">Оформить подписку</p>
+      <p className="text-sm font-medium text-gray-700">
+        {isPaid ? 'Подключить свой домен' : 'Оформить подписку'}
+      </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {PAYMENT_OPTIONS.map((opt) => (
+        {PAYMENT_OPTIONS.filter(opt =>
+          isPaid ? opt.key === 'custom_domain' : true
+        ).map((opt) => (
           <button
             key={opt.key}
             onClick={() => handlePay(opt.key)}
