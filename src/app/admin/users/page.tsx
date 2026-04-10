@@ -3,8 +3,12 @@ import { formatDate, formatPrice } from '@/lib/utils'
 import Link from 'next/link'
 import { ChevronDown } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminUsersPage() {
   const supabase = await createAdminClient()
+
+  console.log('[admin/users] SERVICE_ROLE_KEY set:', !!process.env.SUPABASE_SERVICE_ROLE_KEY)
 
   const { data: users, error } = await supabase
     .from('users')
