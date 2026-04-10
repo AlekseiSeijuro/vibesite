@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { MessageCircle, Circle } from 'lucide-react'
 
@@ -12,7 +12,7 @@ interface Chat {
 }
 
 export default async function AdminSupportPage() {
-  const supabase = await createClient()
+  const supabase = await createAdminClient()
 
   const { data: chats } = await supabase
     .from('support_chats')

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 import { formatDate } from '@/lib/utils'
 import LogModal from './LogModal'
 
@@ -14,7 +14,7 @@ export default async function AdminLogsPage({
 }: {
   searchParams: SearchParams
 }) {
-  const supabase = await createClient()
+  const supabase = await createAdminClient()
   const status = searchParams.status ?? ''
   const page = Math.max(1, parseInt(searchParams.page ?? '1'))
   const from = (page - 1) * PAGE_SIZE

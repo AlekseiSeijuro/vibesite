@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Sparkles, Users, Globe, FileText, ClipboardList, Settings, MessageCircle } from 'lucide-react'
@@ -21,8 +21,10 @@ export default async function AdminLayout({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Проверяем роль напрямую в БД (middleware уже проверил но дублируем для надёжности)
-  const { data: profile } = await supabase
+  const adminSupabase = await createAdminClient()
+
+  // Проверяем роль напрямую в БД
+  const { data: profile } = await adminSupabase
     .from('users')
     .select('role')
     .eq('id', user.id)
@@ -31,7 +33,7 @@ export default async function AdminLayout({
   if (profile?.role !== 'admin') redirect('/dashboard')
 
   // Суммарный счётчик непрочитанных сообщений для бейджа в навигации
-  const { data: unreadData } = await supabase
+  const { data: unreadData } = await adminSupabase
     .from('support_chats')
     .select('unread_by_admin')
     .gt('unread_by_admin', 0)

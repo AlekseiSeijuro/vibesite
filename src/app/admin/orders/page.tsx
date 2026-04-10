@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 import { formatDate } from '@/lib/utils'
 import OrderActions from './OrderActions'
 
@@ -11,7 +11,7 @@ export default async function AdminOrdersPage({
 }: {
   searchParams: SearchParams
 }) {
-  const supabase = await createClient()
+  const supabase = await createAdminClient()
   const status = searchParams.status ?? ''
 
   let query = supabase
