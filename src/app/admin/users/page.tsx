@@ -6,13 +6,15 @@ import { ChevronDown } from 'lucide-react'
 export default async function AdminUsersPage() {
   const supabase = await createAdminClient()
 
-  const { data: users } = await supabase
+  const { data: users, error } = await supabase
     .from('users')
     .select(`
       id, email, role, subscription_status, subscription_ends_at, edit_balance, created_at,
       websites(count)
     `)
     .order('created_at', { ascending: false })
+
+  console.log('[admin/users] count:', users?.length, 'error:', error?.message)
 
   // Загружаем все подписки сразу
   const { data: allSubscriptions } = await supabase
@@ -49,7 +51,7 @@ export default async function AdminUsersPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Пользователи</h1>
         <p className="text-gray-500 text-sm mt-1">
-          Всего: {users?.length ?? 0}
+          Всего: {users?.length ?? 0}{error && ` — ошибка: ${error.message}`}
         </p>
       </div>
 
