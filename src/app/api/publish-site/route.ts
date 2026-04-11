@@ -93,7 +93,7 @@ export async function POST(request: Request) {
     )
   }
 
-  const domain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'vibesite.ru'
+  const domain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'beauty-site.ru'
   const siteUrl = `https://${site.subdomain}.${domain}`
 
   return NextResponse.json({

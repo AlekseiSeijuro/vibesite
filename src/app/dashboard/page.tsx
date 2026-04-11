@@ -21,7 +21,7 @@ export default async function DashboardPage() {
 
   const { data: websites } = await supabase
     .from('websites')
-    .select('*')
+    .select('id, user_id, subdomain, custom_domain, status, meta_data, data_hash, subscription_plan, is_source_code_provided, created_at, published_at')
     .eq('user_id', user!.id)
     .order('created_at', { ascending: false })
 
@@ -91,7 +91,7 @@ function SiteCard({ site }: { site: Website }) {
         className="relative w-full bg-gradient-to-br from-brand-50 to-purple-50"
         style={{ height: '180px', overflow: 'hidden' }}
       >
-        {site.generated_code ? (
+        {site.status !== 'draft' ? (
           <div
             style={{
               position: 'absolute',
@@ -106,9 +106,10 @@ function SiteCard({ site }: { site: Website }) {
             }}
           >
             <iframe
-              srcDoc={site.generated_code}
+              src={`/api/preview/${site.id}`}
               sandbox=""
               title={`preview-${site.id}`}
+              loading="lazy"
               style={{
                 width: '1280px',
                 height: '900px',

@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import type { ResponseCookie } from 'next/dist/compiled/@edge-runtime/cookies'
 
-const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'vibesite.ru'
+const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'beauty-site.ru'
 // Полный хост приложения (без протокола), например vibesite.vercel.app или vibesite.ru
 const APP_HOST = (process.env.NEXT_PUBLIC_APP_URL ?? '')
   .replace('https://', '')
