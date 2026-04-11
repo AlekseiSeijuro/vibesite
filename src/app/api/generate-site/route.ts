@@ -212,7 +212,7 @@ export async function POST(request: Request) {
     // 7. Запускаем генерацию в фоне (fire-and-forget)
     //    processGeneration использует adminClient — не зависит от сессии
     processGeneration({
-      siteId,
+      siteId: siteId!,
       userId: user.id,
       formData,
       subscriptionStatus,
