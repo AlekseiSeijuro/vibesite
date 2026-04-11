@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Button from '@/components/ui/Button'
+import { createClient } from '@/lib/supabase/client'
 import type { Website } from '@/types'
 
 interface Props {
@@ -53,6 +54,8 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
   const [viewMode, setViewMode] = useState<ViewMode>('desktop')
   const [regenerating, setRegenerating] = useState(false)
   const [publishing, setPublishing] = useState(false)
+  const [siteStatus, setSiteStatus] = useState(site.status)
+  const [isGenerating, setIsGenerating] = useState(site.status === 'generating')
   const [published, setPublished] = useState(site.status === 'published')
   const [currentSubdomain, setCurrentSubdomain] = useState(site.subdomain)
   const [siteUrl, setSiteUrl] = useState<string | null>(
@@ -76,6 +79,46 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
   const [editing, setEditing] = useState(false)
   const [balance, setBalance] = useState(initialBalance)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // ── Supabase Realtime: следим за статусом генерации ──
+  useEffect(() => {
+    if (!isGenerating) return
+
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`website-${site.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'websites',
+          filter: `id=eq.${site.id}`,
+        },
+        (payload) => {
+          const newStatus = payload.new?.status
+          console.log('[realtime] Website status changed:', newStatus)
+
+          if (newStatus === 'demo' || newStatus === 'published') {
+            setSiteStatus(newStatus)
+            setIsGenerating(false)
+            setIframeKey(k => k + 1)
+            toast.success('Сайт успешно создан!')
+            router.refresh() // обновить server component с новыми данными
+          } else if (newStatus === 'draft') {
+            // Генерация не удалась
+            setSiteStatus(newStatus)
+            setIsGenerating(false)
+            toast.error('Не удалось сгенерировать сайт. Попробуйте перегенерировать.')
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [isGenerating, site.id])
 
   // Масштабирование iframe под контейнер в desktop-режиме.
   // Пересчитывается при: смене viewMode, смене iframeKey, ресайзе окна.
@@ -118,8 +161,11 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      toast.success('Сайт перегенерирован!')
-      router.refresh()
+
+      // Генерация запущена в фоне — показываем статус генерации
+      setIsGenerating(true)
+      setSiteStatus('generating')
+      toast.success('Перегенерация запущена...')
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Ошибка перегенерации')
     } finally {
@@ -274,7 +320,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
           </button>
         </div>
 
-        <Button variant="secondary" size="sm" loading={regenerating} onClick={handleRegenerate}>
+        <Button variant="secondary" size="sm" loading={regenerating} onClick={handleRegenerate} disabled={isGenerating}>
           <RefreshCw className="h-4 w-4" />
           Перегенерировать
         </Button>
@@ -283,6 +329,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
           variant="secondary"
           size="sm"
           onClick={() => router.push(`/dashboard/create?id=${site.id}`)}
+          disabled={isGenerating}
         >
           <Edit className="h-4 w-4" />
           Изменить данные
@@ -351,7 +398,23 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
           'flex-1 bg-gray-100 flex items-start justify-center overflow-hidden p-3',
           mobileTab === 'chat' ? 'hidden md:flex' : 'flex'
         )}>
-          {site.generated_code ? (
+          {isGenerating ? (
+            <div className="flex flex-col items-center justify-center gap-4 mt-20">
+              <div className="relative">
+                <div className="w-16 h-16 rounded-2xl bg-brand-100 flex items-center justify-center">
+                  <Sparkles className="h-8 w-8 text-brand-500 animate-pulse" />
+                </div>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-semibold text-gray-900">Генерируем ваш сайт...</p>
+                <p className="text-sm text-gray-500 mt-1">Это займёт 30–60 секунд. Страницу можно не закрывать.</p>
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <Loader2 className="h-4 w-4 text-brand-500 animate-spin" />
+                <span className="text-xs text-gray-400">AI создаёт дизайн и вёрстку</span>
+              </div>
+            </div>
+          ) : site.generated_code || siteStatus === 'demo' || siteStatus === 'published' ? (
             <div
               ref={containerRef}
               className={cn(
@@ -380,8 +443,8 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center gap-3 text-gray-400 mt-20">
-              <Loader2 className="h-8 w-8 animate-spin" />
-              <p className="text-sm">Генерация сайта...</p>
+              <Globe className="h-10 w-10 text-gray-300" />
+              <p className="text-sm">Сайт ещё не создан</p>
             </div>
           )}
         </div>

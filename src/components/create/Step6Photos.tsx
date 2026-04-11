@@ -144,7 +144,8 @@ export default function Step6Photos() {
       }
 
       const data = await res.json()
-      toast.success('Сайт успешно создан!')
+      // Сайт создан, генерация идёт в фоне — переходим на превью
+      // Там фронтенд покажет статус генерации через Realtime
       router.push(`/dashboard/preview/${data.websiteId}`)
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Ошибка'

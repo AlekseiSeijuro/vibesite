@@ -6,12 +6,13 @@ import type { Website } from '@/types'
 
 function StatusBadge({ status }: { status: Website['status'] }) {
   const map = {
-    draft:     { label: 'Черновик',    class: 'badge-gray' },
-    demo:      { label: 'Демо',        class: 'badge-yellow' },
-    published: { label: 'Опубликован', class: 'badge-green' },
-    archived:  { label: 'Архив',       class: 'badge-gray' },
+    draft:      { label: 'Черновик',    class: 'badge-gray' },
+    generating: { label: 'Генерация...', class: 'badge-blue' },
+    demo:       { label: 'Демо',        class: 'badge-yellow' },
+    published:  { label: 'Опубликован', class: 'badge-green' },
+    archived:   { label: 'Архив',       class: 'badge-gray' },
   }
-  const s = map[status]
+  const s = map[status] ?? { label: status, class: 'badge-gray' }
   return <span className={s.class}>{s.label}</span>
 }
 
@@ -91,7 +92,7 @@ function SiteCard({ site }: { site: Website }) {
         className="relative w-full bg-gradient-to-br from-brand-50 to-purple-50"
         style={{ height: '180px', overflow: 'hidden' }}
       >
-        {site.status !== 'draft' ? (
+        {(site.status === 'demo' || site.status === 'published') ? (
           <div
             style={{
               position: 'absolute',
@@ -116,6 +117,11 @@ function SiteCard({ site }: { site: Website }) {
                 border: 'none',
               }}
             />
+          </div>
+        ) : site.status === 'generating' ? (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+            <div className="w-8 h-8 border-2 border-brand-200 border-t-brand-500 rounded-full animate-spin" />
+            <p className="text-xs text-gray-400">Генерация...</p>
           </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center">

@@ -79,6 +79,10 @@
     @apply badge bg-gray-100 text-gray-600;
   }
 
+  .badge-blue {
+    @apply badge bg-blue-50 text-blue-700;
+  }
+
   .badge-purple {
     @apply badge bg-brand-50 text-brand-700;
   }

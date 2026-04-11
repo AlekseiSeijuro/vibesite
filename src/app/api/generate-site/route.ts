@@ -1,25 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { buildPrompt, hashFormData } from '@/lib/promptBuilder'
-import {
-  extractHTML,
-  validateHTML,
-  sanitizeHTML,
-  injectPhotos,
-  addWatermark,
-  injectDomainLock,
-  minifyHTML,
-} from '@/lib/htmlUtils'
-import { generateWithClaude, SYSTEM_PROMPT } from '@/lib/openrouter'
+import { hashFormData } from '@/lib/promptBuilder'
 import { generateSubdomain } from '@/lib/utils'
 import { generateSiteSchema, parseBody } from '@/lib/validation/schemas'
 import type { WebsiteFormData } from '@/types'
 import { validateAllFormFields, sanitizeFormField } from '@/lib/promptSafety'
+import { processGeneration } from '@/lib/generateProcess'
 
-const MAX_RETRIES = 3
-
-// Увеличиваем таймаут серверлесс-функции
-// Hobby: макс 60с (с конфигом), Pro: макс 300с
 export const maxDuration = 120
 
 export async function POST(request: Request) {
@@ -74,7 +61,7 @@ export async function POST(request: Request) {
       }))
     }
 
-    // 3. Получаем профиль — с fallback на trial если RLS не пускает
+    // 3. Получаем профиль
     let subscriptionStatus = 'trial'
     try {
       const { data: profile } = await supabase
@@ -109,12 +96,9 @@ export async function POST(request: Request) {
     }
 
     // 4.1. Лимит генераций в сутки
-    //      Демо: 3 генерации/сутки, Платный: 7 генераций/сутки
-    //      Считаем успешные генерации (attempt_number = 1) за последние 24 часа
     const DAILY_LIMIT = subscriptionStatus === 'active' ? 7 : 3
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
 
-    // Получаем ID сайтов пользователя для подсчёта генераций
     const { data: userSites } = await supabase
       .from('websites')
       .select('id')
@@ -153,17 +137,26 @@ export async function POST(request: Request) {
     if (websiteId) {
       const { data: existing } = await supabase
         .from('websites')
-        .select('id, generated_code, data_hash')
+        .select('id, generated_code, data_hash, status')
         .eq('id', websiteId)
         .eq('user_id', user.id)
         .single()
 
+      // Если данные не менялись и HTML уже есть — возвращаем кэш
       if (existing?.data_hash === dataHash && existing?.generated_code) {
         console.log('[generate-site] Returning cached result')
         return NextResponse.json({
           websiteId: existing.id,
-          html: existing.generated_code,
+          status: existing.status,
           cached: true,
+        })
+      }
+
+      // Если уже генерируется — не запускаем повторно
+      if (existing?.status === 'generating') {
+        return NextResponse.json({
+          websiteId: existing.id,
+          status: 'generating',
         })
       }
     }
@@ -191,7 +184,7 @@ export async function POST(request: Request) {
         .insert({
           user_id: user.id,
           subdomain,
-          status: 'draft',
+          status: 'generating',
           meta_data: formData,
           data_hash: dataHash,
         })
@@ -211,125 +204,28 @@ export async function POST(request: Request) {
     } else {
       await supabase
         .from('websites')
-        .update({ meta_data: formData, data_hash: dataHash })
+        .update({ meta_data: formData, data_hash: dataHash, status: 'generating' })
         .eq('id', siteId)
         .eq('user_id', user.id)
     }
 
-    // 7. Строим промпт
-    const prompt = buildPrompt(formData)
-    console.log('[generate-site] Prompt length:', prompt.length)
+    // 7. Запускаем генерацию в фоне (fire-and-forget)
+    //    processGeneration использует adminClient — не зависит от сессии
+    processGeneration({
+      siteId,
+      userId: user.id,
+      formData,
+      subscriptionStatus,
+    }).catch((e) => {
+      console.error('[generate-site] Background generation failed:', e)
+    })
 
-    // 8. Генерация с retry
-    let generatedHTML = ''
-    let tokensUsed = 0
-
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      console.log(`[generate-site] Attempt ${attempt}/${MAX_RETRIES}`)
-
-      const { data: logEntry } = await supabase
-        .from('generation_logs')
-        .insert({
-          website_id: siteId,
-          prompt_used: prompt,
-          status: 'pending',
-          attempt_number: attempt,
-        })
-        .select('id')
-        .single()
-
-      const logId = logEntry?.id
-
-      try {
-        const currentPrompt =
-          attempt > 1
-            ? `${prompt}\n\nВАЖНО: Предыдущая попытка вернула некорректный HTML. Ответ должен начинаться строго с <!DOCTYPE html> и заканчиваться </html>.`
-            : prompt
-
-        const result = await generateWithClaude(currentPrompt, SYSTEM_PROMPT)
-        tokensUsed = result.tokensUsed
-        console.log(`[generate-site] Got response, tokens: ${tokensUsed}, length: ${result.content.length}`)
-
-        const extracted = extractHTML(result.content)
-        const isValid = validateHTML(extracted)
-        console.log(`[generate-site] HTML valid: ${isValid}`)
-
-        if (!isValid) {
-          await supabase
-            .from('generation_logs')
-            .update({ raw_response: result.content.slice(0, 5000), status: 'failed', tokens_used: tokensUsed, error_message: 'Invalid HTML' })
-            .eq('id', logId)
-          continue
-        }
-
-        generatedHTML = extracted
-
-        await supabase
-          .from('generation_logs')
-          .update({ raw_response: result.content.slice(0, 5000), status: 'success', tokens_used: tokensUsed })
-          .eq('id', logId)
-
-        break
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e)
-        console.error(`[generate-site] Generation error (attempt ${attempt}):`, msg)
-
-        await supabase
-          .from('generation_logs')
-          .update({ status: 'failed', error_message: msg })
-          .eq('id', logId)
-
-        if (attempt === MAX_RETRIES) {
-          return NextResponse.json(
-            { error: `Ошибка обращения к AI: ${msg}` },
-            { status: 500 }
-          )
-        }
-      }
-    }
-
-    if (!generatedHTML) {
-      return NextResponse.json(
-        { error: 'Не удалось сгенерировать корректный HTML после 3 попыток' },
-        { status: 500 }
-      )
-    }
-
-    // 9. Постобработка
-    let finalHTML = sanitizeHTML(generatedHTML)
-
-    if (formData.photo_urls && formData.photo_urls.length > 0) {
-      finalHTML = injectPhotos(finalHTML, formData.photo_urls)
-    }
-
-    if (subscriptionStatus === 'trial') {
-      finalHTML = addWatermark(finalHTML)
-    }
-
-    // Привязка к домену — сайт покажет заглушку если открыть вне beauty-site.ru
-    const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'beauty-site.ru'
-    finalHTML = injectDomainLock(finalHTML, appDomain)
-
-    // Минификация — убирает читаемость исходника
-    finalHTML = minifyHTML(finalHTML)
-
-    // 10. Сохраняем
-    await supabase
-      .from('websites')
-      .update({
-        generated_code: finalHTML,
-        prompt_used: prompt,
-        status: 'demo',
-      })
-      .eq('id', siteId)
-
-    console.log('[generate-site] Done, siteId:', siteId)
+    // 8. Сразу отвечаем клиенту — не ждём генерации
+    console.log('[generate-site] Returning immediately, siteId:', siteId)
 
     return NextResponse.json({
       websiteId: siteId,
-      html: finalHTML,
-      tokensUsed,
-      cached: false,
+      status: 'generating',
     })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)

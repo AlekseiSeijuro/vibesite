@@ -4,7 +4,7 @@
 
 export type UserRole = 'user' | 'admin'
 export type SubscriptionStatus = 'trial' | 'active' | 'expired'
-export type WebsiteStatus = 'draft' | 'demo' | 'published' | 'archived'
+export type WebsiteStatus = 'draft' | 'generating' | 'demo' | 'published' | 'archived'
 export type SubscriptionPlan = 'demo' | 'subdomain' | 'custom_domain'
 export type OrderStatus = 'new' | 'in_progress' | 'completed' | 'cancelled'
 export type GenerationStatus = 'success' | 'failed' | 'pending'
