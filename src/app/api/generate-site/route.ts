@@ -18,6 +18,10 @@ import { validateAllFormFields, sanitizeFormField } from '@/lib/promptSafety'
 
 const MAX_RETRIES = 3
 
+// Увеличиваем таймаут серверлесс-функции
+// Hobby: макс 60с (с конфигом), Pro: макс 300с
+export const maxDuration = 120
+
 export async function POST(request: Request) {
   try {
     // 1. Авторизация

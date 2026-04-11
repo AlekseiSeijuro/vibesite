@@ -18,6 +18,8 @@ const EDIT_SYSTEM_PROMPT =
   'Ответ должен начинаться с <!DOCTYPE html> и заканчиваться </html>. ' +
   'Никакого текста, пояснений или markdown до или после HTML.'
 
+export const maxDuration = 120
+
 export async function POST(request: Request) {
   try {
     // 1. Авторизация

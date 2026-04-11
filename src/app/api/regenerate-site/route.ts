@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 
 // Перегенерация просто сбрасывает data_hash чтобы обойти кэш,
 // затем вызывает generate-site с теми же данными
+export const maxDuration = 120
+
 export async function POST(request: Request) {
   const supabase = await createClient()
   const {
