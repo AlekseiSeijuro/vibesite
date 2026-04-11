@@ -57,34 +57,31 @@ export async function POST(request: Request) {
   // Пополнение баланса AI-редактора
   if (type === 'balance_topup') {
     const editsCount = parseInt(edits ?? '0', 10)
-    const amount = Math.round(parseFloat(payment.amount.value))
+    const topupAmount = editsCount * 49  // сумма в рублях для баланса
+    const paymentAmount = Math.round(parseFloat(payment.amount.value))
 
-    const { data: profile } = await supabase
-      .from('users')
-      .select('edit_balance')
-      .eq('id', userId)
-      .single()
+    // Атомарное пополнение через SQL-функцию
+    const { data: newBalance, error: topupError } = await supabase.rpc(
+      'topup_edit_balance',
+      { p_user_id: userId, p_amount: topupAmount }
+    )
 
-    const newBalance = (profile?.edit_balance ?? 0) + editsCount * 49
+    if (topupError) {
+      console.error('[webhook] topup_edit_balance error:', topupError)
+      return NextResponse.json({ error: 'Balance topup failed' }, { status: 500 })
+    }
 
-    await Promise.all([
-      supabase
-        .from('users')
-        .update({ edit_balance: newBalance })
-        .eq('id', userId),
+    await supabase.from('subscriptions').insert({
+      user_id: userId,
+      plan: 'demo',
+      type: 'balance_topup',
+      start_date: new Date().toISOString(),
+      end_date: null,
+      amount: paymentAmount,
+      payment_id: paymentId,
+    })
 
-      supabase.from('subscriptions').insert({
-        user_id: userId,
-        plan: 'demo',
-        type: 'balance_topup',
-        start_date: new Date().toISOString(),
-        end_date: null,
-        amount,
-        payment_id: paymentId,
-      }),
-    ])
-
-    console.log('[webhook] Balance topup:', userId, '+', editsCount * 49, '-> balance:', newBalance)
+    console.log('[webhook] Balance topup:', userId, '+', topupAmount, '-> balance:', newBalance)
     return NextResponse.json({ ok: true })
   }
 

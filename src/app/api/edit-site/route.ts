@@ -45,26 +45,35 @@ export async function POST(request: Request) {
       )
     }
 
-    // 3. Получаем профиль пользователя и проверяем баланс
-    const { data: profile } = await supabase
-      .from('users')
-      .select('edit_balance')
-      .eq('id', user.id)
-      .single()
+    // 3. Атомарное списание баланса — предотвращает race condition
+    //    Функция deduct_edit_balance проверяет и списывает в одной транзакции.
+    //    Возвращает новый баланс или -1 если недостаточно средств.
+    const { data: newBalance, error: deductError } = await supabase.rpc(
+      'deduct_edit_balance',
+      { p_user_id: user.id, p_amount: EDIT_COST }
+    )
 
-    if (!profile) {
+    if (deductError) {
+      console.error('[edit-site] deduct_edit_balance error:', deductError)
       return NextResponse.json(
-        { error: 'Профиль пользователя не найден' },
-        { status: 404 }
+        { error: 'Ошибка списания баланса' },
+        { status: 500 }
       )
     }
 
-    if ((profile.edit_balance ?? 0) < EDIT_COST) {
+    if (newBalance === -1) {
+      // Получаем текущий баланс для информативного сообщения
+      const { data: profile } = await supabase
+        .from('users')
+        .select('edit_balance')
+        .eq('id', user.id)
+        .single()
+
       return NextResponse.json(
         {
-          error: `Недостаточно средств. Для правки нужно ${EDIT_COST} ₽, на балансе ${profile.edit_balance ?? 0} ₽.`,
+          error: `Недостаточно средств. Для правки нужно ${EDIT_COST} ₽, на балансе ${profile?.edit_balance ?? 0} ₽.`,
           code: 'INSUFFICIENT_BALANCE',
-          balance: profile.edit_balance ?? 0,
+          balance: profile?.edit_balance ?? 0,
           required: EDIT_COST,
         },
         { status: 402 }
@@ -80,6 +89,8 @@ export async function POST(request: Request) {
       .single()
 
     if (!site) {
+      // Возвращаем списанные средства
+      await supabase.rpc('topup_edit_balance', { p_user_id: user.id, p_amount: EDIT_COST })
       return NextResponse.json(
         { error: 'Сайт не найден' },
         { status: 404 }
@@ -87,6 +98,8 @@ export async function POST(request: Request) {
     }
 
     if (!site.generated_code) {
+      // Возвращаем списанные средства
+      await supabase.rpc('topup_edit_balance', { p_user_id: user.id, p_amount: EDIT_COST })
       return NextResponse.json(
         { error: 'У сайта нет сгенерированного кода' },
         { status: 400 }
@@ -125,7 +138,9 @@ export async function POST(request: Request) {
       const msg = e instanceof Error ? e.message : String(e)
       console.error('[edit-site] AI error:', msg)
 
-      // Обновляем лог — ошибка генерации
+      // Возвращаем средства при ошибке AI
+      await supabase.rpc('topup_edit_balance', { p_user_id: user.id, p_amount: EDIT_COST })
+
       if (logId) {
         await supabase
           .from('edit_logs')
@@ -145,6 +160,9 @@ export async function POST(request: Request) {
 
     if (!isValid) {
       console.error('[edit-site] Invalid HTML from AI')
+
+      // Возвращаем средства при невалидном HTML
+      await supabase.rpc('topup_edit_balance', { p_user_id: user.id, p_amount: EDIT_COST })
 
       if (logId) {
         await supabase
@@ -179,6 +197,9 @@ export async function POST(request: Request) {
     if (updateError) {
       console.error('[edit-site] DB update error:', updateError)
 
+      // Возвращаем средства при ошибке сохранения
+      await supabase.rpc('topup_edit_balance', { p_user_id: user.id, p_amount: EDIT_COST })
+
       if (logId) {
         await supabase
           .from('edit_logs')
@@ -196,30 +217,23 @@ export async function POST(request: Request) {
       )
     }
 
-    // 10. Списываем с баланса и обновляем лог — всё прошло успешно
-    await Promise.all([
-      supabase
-        .from('users')
-        .update({ edit_balance: (profile.edit_balance ?? 0) - EDIT_COST })
-        .eq('id', user.id),
+    // 10. Обновляем лог — всё прошло успешно (баланс уже списан в шаге 3)
+    if (logId) {
+      await supabase
+        .from('edit_logs')
+        .update({
+          html_after: finalHTML,
+          tokens_used: tokensUsed,
+          status: 'success',
+        })
+        .eq('id', logId)
+    }
 
-      logId
-        ? supabase
-            .from('edit_logs')
-            .update({
-              html_after: finalHTML,
-              tokens_used: tokensUsed,
-              status: 'success',
-            })
-            .eq('id', logId)
-        : Promise.resolve(),
-    ])
-
-    console.log('[edit-site] Done, websiteId:', websiteId, 'tokens:', tokensUsed)
+    console.log('[edit-site] Done, websiteId:', websiteId, 'tokens:', tokensUsed, 'newBalance:', newBalance)
 
     return NextResponse.json({
       success: true,
-      newBalance: (profile.edit_balance ?? 0) - EDIT_COST,
+      newBalance,
       tokensUsed,
     })
   } catch (e: unknown) {
