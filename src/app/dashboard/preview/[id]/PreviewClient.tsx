@@ -40,7 +40,7 @@ const DESKTOP_RENDER_WIDTH = 1280
 function getSiteUrl(subdomain: string | null, status: string): string | null {
   if (!subdomain || status !== 'published') return null
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'vibesite.ru'
+  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'beauty-site.ru'
   const isVercel = appUrl.includes('vercel.app') || appUrl.includes('localhost')
   if (isVercel) return `${appUrl}/api/site/${subdomain}`
   return `https://${subdomain}.${appDomain}`

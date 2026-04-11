@@ -9,6 +9,7 @@ import {
   minifyHTML,
 } from '@/lib/htmlUtils'
 import { generateWithClaude } from '@/lib/openrouter'
+import { validateEditMessage } from '@/lib/promptSafety'
 
 const EDIT_COST = 49 // рублей за одну правку
 const EDIT_SYSTEM_PROMPT =
@@ -38,6 +39,16 @@ export async function POST(request: Request) {
       websiteId = body.websiteId
       userMessage = body.userMessage?.trim()
       if (!websiteId || !userMessage) throw new Error('Missing fields')
+
+      // Валидация сообщения на injection и вредоносный контент
+      const validation = validateEditMessage(userMessage)
+      if (!validation.valid) {
+        return NextResponse.json(
+          { error: validation.error, code: 'INVALID_MESSAGE' },
+          { status: 400 }
+        )
+      }
+      userMessage = validation.sanitized!
     } catch {
       return NextResponse.json(
         { error: 'Некорректные данные запроса' },

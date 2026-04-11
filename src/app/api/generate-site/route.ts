@@ -14,6 +14,7 @@ import { generateWithClaude, SYSTEM_PROMPT } from '@/lib/openrouter'
 import { generateSubdomain } from '@/lib/utils'
 import { generateSiteSchema, parseBody } from '@/lib/validation/schemas'
 import type { WebsiteFormData } from '@/types'
+import { validateAllFormFields, sanitizeFormField } from '@/lib/promptSafety'
 
 const MAX_RETRIES = 3
 
@@ -45,6 +46,30 @@ export async function POST(request: Request) {
     const formData: WebsiteFormData = parseResult.data.formData as WebsiteFormData
     const websiteId: string | null = parseResult.data.websiteId ?? null
 
+    // 2.1. Валидация всех текстовых полей на injection и вредоносный контент
+    const formValidation = validateAllFormFields(formData)
+    if (!formValidation.valid) {
+      return NextResponse.json(
+        { error: formValidation.error, code: 'INVALID_INPUT' },
+        { status: 400 }
+      )
+    }
+
+    // 2.2. Санитизация всех текстовых полей
+    formData.master_name = sanitizeFormField(formData.master_name)
+    if (formData.studio_name) formData.studio_name = sanitizeFormField(formData.studio_name)
+    formData.city = sanitizeFormField(formData.city)
+    if (formData.address) formData.address = sanitizeFormField(formData.address)
+    if (formData.style_notes) formData.style_notes = sanitizeFormField(formData.style_notes)
+    if (formData.services) {
+      formData.services = formData.services.map(s => ({
+        ...s,
+        name: sanitizeFormField(s.name),
+        price: sanitizeFormField(s.price),
+        description: s.description ? sanitizeFormField(s.description) : s.description,
+      }))
+    }
+
     // 3. Получаем профиль — с fallback на trial если RLS не пускает
     let subscriptionStatus = 'trial'
     try {
@@ -60,8 +85,7 @@ export async function POST(request: Request) {
       console.warn('[generate-site] Could not fetch profile, using trial:', e)
     }
 
-    // 4. Лимит для демо — не более 3 сайтов всего
-    // Перегенерация существующего сайта (websiteId передан) — разрешена
+    // 4. Лимит сайтов для демо — не более 1
     if (subscriptionStatus === 'trial' && !websiteId) {
       const { count } = await supabase
         .from('websites')
@@ -78,6 +102,45 @@ export async function POST(request: Request) {
           { status: 429 }
         )
       }
+    }
+
+    // 4.1. Лимит генераций в сутки
+    //      Демо: 3 генерации/сутки, Платный: 7 генераций/сутки
+    //      Считаем успешные генерации (attempt_number = 1) за последние 24 часа
+    const DAILY_LIMIT = subscriptionStatus === 'active' ? 7 : 3
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+    // Получаем ID сайтов пользователя для подсчёта генераций
+    const { data: userSites } = await supabase
+      .from('websites')
+      .select('id')
+      .eq('user_id', user.id)
+
+    const userSiteIds = userSites?.map(w => w.id) ?? []
+
+    let generationsToday = 0
+    if (userSiteIds.length > 0) {
+      const { count } = await supabase
+        .from('generation_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('attempt_number', 1)
+        .eq('status', 'success')
+        .gte('created_at', twentyFourHoursAgo)
+        .in('website_id', userSiteIds)
+
+      generationsToday = count ?? 0
+    }
+
+    if (generationsToday >= DAILY_LIMIT) {
+      return NextResponse.json(
+        {
+          error: `Достигнут лимит генераций: ${DAILY_LIMIT} в сутки. Попробуйте позже.`,
+          code: 'GENERATION_LIMIT',
+          limit: DAILY_LIMIT,
+          used: generationsToday,
+        },
+        { status: 429 }
+      )
     }
 
     // 5. Проверяем кэш
