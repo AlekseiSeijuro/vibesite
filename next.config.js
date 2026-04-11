@@ -35,7 +35,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https://storage.yandexcloud.net https://*.supabase.co https://images.unsplash.com https://*.beauty-site.ru",
-              "connect-src 'self' https://*.supabase.co https://routerai.ru https://api.yookassa.ru",
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://routerai.ru https://api.yookassa.ru",
               "frame-src 'self' https://*.beauty-site.ru",
               "frame-ancestors 'self'",
             ].join('; '),
