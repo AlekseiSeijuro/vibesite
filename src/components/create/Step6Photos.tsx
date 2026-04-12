@@ -131,36 +131,20 @@ export default function Step6Photos() {
       const finalFormData = { ...formData, photo_urls: uploadedUrls }
       updateFormData({ photo_urls: uploadedUrls })
 
-      // Запускаем генерацию — сервер ответит streaming response
-      // Читаем первый chunk с websiteId и сразу редиректим
+      // Запускаем генерацию — сервер ответит сразу, генерация идёт на VPS
       const res = await fetch('/api/generate-site', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ formData: finalFormData, websiteId }),
       })
 
-      // Для ошибок валидации (4xx) — ответ обычный JSON
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.error ?? 'Ошибка генерации')
       }
 
-      // Читаем первый chunk из streaming response
-      const reader = res.body?.getReader()
-      if (reader) {
-        const { value } = await reader.read()
-        const text = new TextDecoder().decode(value)
-        try {
-          const data = JSON.parse(text)
-          router.push(`/dashboard/preview/${data.websiteId}`)
-        } catch {
-          // Если не удалось распарсить — попробуем полный текст
-          const fullText = await res.text()
-          const data = JSON.parse(text + fullText)
-          router.push(`/dashboard/preview/${data.websiteId}`)
-        }
-        // Не закрываем reader — сервер продолжает генерацию в фоне
-      }
+      const data = await res.json()
+      router.push(`/dashboard/preview/${data.websiteId}`)
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Ошибка'
       toast.error(message)

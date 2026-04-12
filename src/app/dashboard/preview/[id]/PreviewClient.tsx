@@ -80,11 +80,13 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
   const [balance, setBalance] = useState(initialBalance)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // ── Supabase Realtime: следим за статусом генерации ──
+  // ── Supabase Realtime + polling fallback: следим за статусом генерации ──
   useEffect(() => {
     if (!isGenerating) return
 
     const supabase = createClient()
+
+    // Realtime подписка
     const channel = supabase
       .channel(`website-${site.id}`)
       .on(
@@ -98,25 +100,42 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
         (payload) => {
           const newStatus = payload.new?.status
           console.log('[realtime] Website status changed:', newStatus)
-
-          if (newStatus === 'demo' || newStatus === 'published') {
-            setSiteStatus(newStatus)
-            setIsGenerating(false)
-            setIframeKey(k => k + 1)
-            toast.success('Сайт успешно создан!')
-            router.refresh() // обновить server component с новыми данными
-          } else if (newStatus === 'draft') {
-            // Генерация не удалась
-            setSiteStatus(newStatus)
-            setIsGenerating(false)
-            toast.error('Не удалось сгенерировать сайт. Попробуйте перегенерировать.')
-          }
+          handleStatusChange(newStatus)
         }
       )
       .subscribe()
 
+    // Polling fallback — на случай если Realtime не работает (напр. CSP блокирует WSS)
+    const pollInterval = setInterval(async () => {
+      const { data } = await supabase
+        .from('websites')
+        .select('status')
+        .eq('id', site.id)
+        .single()
+
+      if (data?.status && data.status !== 'generating') {
+        console.log('[polling] Website status changed:', data.status)
+        handleStatusChange(data.status)
+      }
+    }, 5000)
+
+    function handleStatusChange(newStatus: string) {
+      if (newStatus === 'demo' || newStatus === 'published') {
+        setSiteStatus(newStatus as Website['status'])
+        setIsGenerating(false)
+        setIframeKey(k => k + 1)
+        toast.success('Сайт успешно создан!')
+        router.refresh()
+      } else if (newStatus === 'draft') {
+        setSiteStatus('draft')
+        setIsGenerating(false)
+        toast.error('Не удалось сгенерировать сайт. Попробуйте перегенерировать.')
+      }
+    }
+
     return () => {
       supabase.removeChannel(channel)
+      clearInterval(pollInterval)
     }
   }, [isGenerating, site.id])
 

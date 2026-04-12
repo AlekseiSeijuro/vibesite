@@ -3,8 +3,6 @@ import { NextResponse } from 'next/server'
 
 // Перегенерация просто сбрасывает data_hash чтобы обойти кэш,
 // затем вызывает generate-site с теми же данными
-export const maxDuration = 120
-
 export async function POST(request: Request) {
   const supabase = await createClient()
   const {
@@ -42,7 +40,7 @@ export async function POST(request: Request) {
     .update({ data_hash: null })
     .eq('id', websiteId)
 
-  // Вызываем generate-site — он вернёт streaming response
+  // Вызываем generate-site — он отправит задачу на worker и ответит сразу
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const res = await fetch(`${baseUrl}/api/generate-site`, {
     method: 'POST',
@@ -56,23 +54,11 @@ export async function POST(request: Request) {
     }),
   })
 
+  const data = await res.json()
+
   if (!res.ok) {
-    const data = await res.json()
     return NextResponse.json(data, { status: res.status })
   }
 
-  // Читаем первый chunk из streaming response
-  const reader = res.body?.getReader()
-  if (reader) {
-    const { value } = await reader.read()
-    const text = new TextDecoder().decode(value)
-    try {
-      const data = JSON.parse(text)
-      return NextResponse.json(data)
-    } catch {
-      return NextResponse.json({ websiteId, status: 'generating' })
-    }
-  }
-
-  return NextResponse.json({ websiteId, status: 'generating' })
+  return NextResponse.json(data)
 }
