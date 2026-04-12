@@ -1,3 +1,18 @@
+// Загрузка .env
+const fs = require('fs')
+const path = require('path')
+const envPath = path.join(__dirname, '.env')
+if (fs.existsSync(envPath)) {
+  fs.readFileSync(envPath, 'utf-8').split('\n').forEach(line => {
+    line = line.trim()
+    if (!line || line.startsWith('#')) return
+    const eq = line.indexOf('=')
+    if (eq === -1) return
+    const key = line.slice(0, eq).trim()
+    const val = line.slice(eq + 1).trim()
+    if (!process.env[key]) process.env[key] = val
+  })
+}
 /**
  * Vibesite Generation Worker
  * Лёгкий сервер на VPS для фоновой генерации сайтов.
@@ -66,32 +81,44 @@ async function supabaseInsert(table, data) {
 // RouterAI (OpenAI-совместимый API)
 // ============================================================
 async function callRouterAI(systemPrompt, userPrompt) {
-  const res = await fetch('https://routerai.ru/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${ROUTERAI_KEY}`,
-    },
-    body: JSON.stringify({
-      model: ROUTERAI_MODEL,
-      max_tokens: 16000,
-      temperature: 0.7,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-    }),
-  })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 300000) // 5 минут таймаут
 
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`RouterAI error ${res.status}: ${text}`)
+  try {
+    const res = await fetch('https://routerai.ru/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ROUTERAI_KEY}`,
+      },
+      body: JSON.stringify({
+        model: ROUTERAI_MODEL,
+        max_tokens: 16000,
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      }),
+      signal: controller.signal,
+    })
+
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(`RouterAI error ${res.status}: ${text}`)
+    }
+
+    const data = await res.json()
+    const choices = data.choices || []
+    const firstChoice = choices[0] || {}
+    const msg = firstChoice.message || {}
+    const content = msg.content || ''
+    const usage = data.usage || {}
+    const tokensUsed = (usage.prompt_tokens || 0) + (usage.completion_tokens || 0)
+    return { content, tokensUsed }
+  } finally {
+    clearTimeout(timeout)
   }
-
-  const data = await res.json()
-  const content = data.choices?.[0]?.message?.content ?? ''
-  const tokensUsed = (data.usage?.prompt_tokens ?? 0) + (data.usage?.completion_tokens ?? 0)
-  return { content, tokensUsed }
 }
 
 // ============================================================
@@ -195,7 +222,7 @@ async function processGeneration(task) {
         status: 'pending',
         attempt_number: attempt,
       })
-      logId = logs?.[0]?.id
+      logId = (logs && logs[0]) ? logs[0].id : null
     } catch (e) {
       console.error('[worker] Failed to insert log:', e.message)
     }
@@ -257,7 +284,7 @@ async function processGeneration(task) {
   // Постобработка
   let finalHTML = sanitizeHTML(generatedHTML)
 
-  const photoUrls = formData?.photo_urls
+  const photoUrls = formData && formData.photo_urls ? formData.photo_urls : null
   if (photoUrls && photoUrls.length > 0) {
     finalHTML = injectPhotos(finalHTML, photoUrls)
   }

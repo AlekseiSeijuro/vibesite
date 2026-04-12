@@ -285,24 +285,49 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
       // Баланс списан, правка отправлена на worker
       setBalance(data.newBalance)
 
-      // Ждём обновления через polling/realtime — handleEditComplete сработает
-      // Запускаем polling для правок отдельно (быстрее чем 5 сек)
+      // Polling по edit_logs — ждём когда статус станет success или failed
+      const supabase = createClient()
       const editPoll = setInterval(async () => {
-        const supabase = createClient()
-        const { data: updated } = await supabase
-          .from('websites')
-          .select('generated_code')
-          .eq('id', site.id)
-          .single()
+        const { data: logs } = await supabase
+          .from('edit_logs')
+          .select('status')
+          .eq('website_id', site.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
 
-        // Проверяем что HTML изменился
-        if (updated?.generated_code && updated.generated_code !== site.generated_code) {
+        const lastLog = logs?.[0]
+        if (lastLog?.status === 'success') {
           clearInterval(editPoll)
-          handleEditComplete()
+          setEditing(false)
+          setIframeKey(k => k + 1)
+          setMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              text: `Готово! Правка внесена. Списано ${EDIT_COST} ₽, остаток: ${data.newBalance} ₽.`,
+            },
+          ])
+        } else if (lastLog?.status === 'failed') {
+          clearInterval(editPoll)
+          setEditing(false)
+          setMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              text: 'Не удалось внести правку. Средства возвращены на баланс. Попробуйте переформулировать запрос.',
+            },
+          ])
+          // Обновить баланс — средства возвращены worker'oм
+          const { data: profile } = await supabase
+            .from('users')
+            .select('edit_balance')
+            .eq('id', site.user_id)
+            .single()
+          if (profile) setBalance(profile.edit_balance)
         }
       }, 3000)
 
-      // Таймаут — если за 5 минут не дождались
+      // Таймаут 5 минут
       setTimeout(() => {
         clearInterval(editPoll)
         if (editing) {
@@ -397,7 +422,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
           </a>
         )}
 
-        <Button variant="secondary" size="sm" loading={regenerating} onClick={handleRegenerate}>
+        <Button variant="secondary" size="sm" loading={regenerating} onClick={handleRegenerate} disabled={isGenerating}>
           <RefreshCw className="h-4 w-4" />
           Перегенерировать
         </Button>
@@ -406,6 +431,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
           variant="secondary"
           size="sm"
           onClick={() => router.push(`/dashboard/create?id=${site.id}`)}
+          disabled={isGenerating}
         >
           <Edit className="h-4 w-4" />
           Изменить данные
@@ -430,7 +456,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
             )}
           </div>
         ) : (
-          <Button loading={publishing} onClick={handlePublish} size="sm">
+          <Button loading={publishing} onClick={handlePublish} size="sm" disabled={isGenerating}>
             <Globe className="h-4 w-4" />
             Опубликовать
           </Button>
@@ -580,13 +606,13 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
                 onChange={e => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Опишите правку..."
-                disabled={editing}
+                disabled={editing || isGenerating}
                 rows={2}
                 className="flex-1 resize-none text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent disabled:opacity-50 disabled:bg-gray-50"
               />
               <button
                 onClick={handleEdit}
-                disabled={editing || !inputValue.trim()}
+                disabled={editing || isGenerating || !inputValue.trim()}
                 className="shrink-0 w-9 h-9 flex items-center justify-center bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl transition-colors"
                 title="Отправить"
               >
