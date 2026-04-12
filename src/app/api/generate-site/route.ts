@@ -113,6 +113,8 @@ export async function POST(request: Request) {
       generationsToday = count ?? 0
     }
 
+    console.log(`[generate-site] Generations today: ${generationsToday}/${DAILY_LIMIT} (status: ${subscriptionStatus})`)
+
     if (generationsToday >= DAILY_LIMIT) {
       return NextResponse.json(
         {

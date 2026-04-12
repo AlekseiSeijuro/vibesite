@@ -86,10 +86,9 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
   const [balance, setBalance] = useState(initialBalance)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // ── Supabase Realtime + polling: следим за изменениями сайта ──
+  // ── Supabase Realtime + polling: следим за генерацией ──
   useEffect(() => {
-    // Слушаем всегда — и для генерации, и для правок
-    if (!isGenerating && !editing) return
+    if (!isGenerating) return
 
     const supabase = createClient()
 
@@ -105,16 +104,8 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
         },
         (payload) => {
           const newStatus = payload.new?.status
-          const hasCode = !!payload.new?.generated_code
-          console.log('[realtime] Website updated, status:', newStatus, 'hasCode:', hasCode)
-
-          if (isGenerating) {
-            handleGenerationStatusChange(newStatus)
-          }
-          if (editing && hasCode) {
-            // Правка завершена — обновляем iframe
-            handleEditComplete()
-          }
+          console.log('[realtime] Website updated, status:', newStatus)
+          handleGenerationStatusChange(newStatus)
         }
       )
       .subscribe()
@@ -123,13 +114,11 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
     const pollInterval = setInterval(async () => {
       const { data } = await supabase
         .from('websites')
-        .select('status, generated_code')
+        .select('status')
         .eq('id', site.id)
         .single()
 
-      if (!data) return
-
-      if (isGenerating && data.status !== 'generating') {
+      if (data?.status && data.status !== 'generating') {
         console.log('[polling] Generation status changed:', data.status)
         handleGenerationStatusChange(data.status)
       }
@@ -139,7 +128,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
       supabase.removeChannel(channel)
       clearInterval(pollInterval)
     }
-  }, [isGenerating, editing, site.id])
+  }, [isGenerating, site.id])
 
   function handleGenerationStatusChange(newStatus: string) {
     if (newStatus === 'demo' || newStatus === 'published') {
@@ -153,18 +142,6 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
       setIsGenerating(false)
       toast.error('Не удалось сгенерировать сайт. Попробуйте перегенерировать.')
     }
-  }
-
-  function handleEditComplete() {
-    setEditing(false)
-    setIframeKey(k => k + 1)
-    setMessages(prev => [
-      ...prev,
-      {
-        role: 'assistant',
-        text: `Готово! Правка внесена. Списано ${EDIT_COST} ₽, остаток: ${balance} ₽.`,
-      },
-    ])
   }
 
   // Масштабирование iframe

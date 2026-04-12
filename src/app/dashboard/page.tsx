@@ -99,8 +99,8 @@ function SiteCard({ site }: { site: Website }) {
               top: 0,
               left: 0,
               width: '1280px',
-              height: '900px',
-              transform: 'scale(0.234)',   // 300 / 1280 ≈ 0.234 (подбирается под ширину карточки ~300px)
+              height: '800px',
+              transform: 'scale(0.28)',
               transformOrigin: 'top left',
               pointerEvents: 'none',
               overflow: 'hidden',
