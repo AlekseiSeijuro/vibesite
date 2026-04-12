@@ -180,6 +180,8 @@ CSS АНИМАЦИИ — обязательно добавь:
 }
 Применяй animation: fadeInUp 0.6s ease forwards на секции.
 Используй animation-delay для последовательного появления элементов.
+ВАЖНО: НЕ ставь opacity: 0 без animation! Если элемент имеет opacity: 0, он ОБЯЗАТЕЛЬНО должен иметь animation с forwards.
+НЕ используй JavaScript (Intersection Observer, scroll events) для анимаций — только чистый CSS.
 
 АДАПТИВНОСТЬ:
 - Mobile first подход

@@ -124,3 +124,15 @@ export function minifyHTML(html: string): string {
     .replace(/ {2,}/g, ' ')
     .trim()
 }
+
+/**
+ * Исправляет невидимые элементы: если AI поставил opacity: 0 и рассчитывал на JS
+ * для анимации (который был удалён sanitizeHTML) — добавляем CSS fallback.
+ */
+export function fixHiddenElements(html: string): string {
+  const hasHiddenElements = /opacity:\s*0/i.test(html)
+  if (!hasHiddenElements) return html
+
+  const fallbackStyle = `<style>section,div,header,main,footer,article,nav{opacity:1!important;transform:none!important;visibility:visible!important}</style>`
+  return html.replace(/<\/head>/i, `${fallbackStyle}\n</head>`)
+}

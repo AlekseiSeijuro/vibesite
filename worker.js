@@ -187,6 +187,13 @@ function minifyHTML(html) {
     .trim()
 }
 
+function fixHiddenElements(html) {
+  var hasHidden = /opacity:\s*0/i.test(html)
+  if (!hasHidden) return html
+  var fallback = '<style>section,div,header,main,footer,article,nav{opacity:1!important;transform:none!important;visibility:visible!important}</style>'
+  return html.replace(/<\/head>/i, fallback + '\n</head>')
+}
+
 // ============================================================
 // Построение промпта (копия из promptBuilder.ts)
 // ============================================================
@@ -283,6 +290,7 @@ async function processGeneration(task) {
 
   // Постобработка
   let finalHTML = sanitizeHTML(generatedHTML)
+  finalHTML = fixHiddenElements(finalHTML)
 
   const photoUrls = formData && formData.photo_urls ? formData.photo_urls : null
   if (photoUrls && photoUrls.length > 0) {
@@ -351,7 +359,8 @@ ${htmlBefore}`
     }
 
     // Постобработка
-    let finalHTML = sanitizeHTML(extracted)
+    var finalHTML = sanitizeHTML(extracted)
+    finalHTML = fixHiddenElements(finalHTML)
     finalHTML = injectDomainLock(finalHTML, APP_DOMAIN)
     finalHTML = minifyHTML(finalHTML)
 
