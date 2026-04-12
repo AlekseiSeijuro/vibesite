@@ -1,12 +1,23 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { hashFormData } from '@/lib/promptBuilder'
+import { buildPrompt, hashFormData } from '@/lib/promptBuilder'
+import {
+  extractHTML,
+  validateHTML,
+  sanitizeHTML,
+  injectPhotos,
+  addWatermark,
+  injectDomainLock,
+  minifyHTML,
+} from '@/lib/htmlUtils'
+import { generateWithClaude, SYSTEM_PROMPT } from '@/lib/openrouter'
 import { generateSubdomain } from '@/lib/utils'
 import { generateSiteSchema, parseBody } from '@/lib/validation/schemas'
 import type { WebsiteFormData } from '@/types'
 import { validateAllFormFields, sanitizeFormField } from '@/lib/promptSafety'
-import { processGeneration } from '@/lib/generateProcess'
+import { createAdminClient } from '@/lib/supabase/server'
 
+const MAX_RETRIES = 3
 export const maxDuration = 120
 
 export async function POST(request: Request) {
@@ -142,7 +153,6 @@ export async function POST(request: Request) {
         .eq('user_id', user.id)
         .single()
 
-      // Если данные не менялись и HTML уже есть — возвращаем кэш
       if (existing?.data_hash === dataHash && existing?.generated_code) {
         console.log('[generate-site] Returning cached result')
         return NextResponse.json({
@@ -152,7 +162,6 @@ export async function POST(request: Request) {
         })
       }
 
-      // Если уже генерируется — не запускаем повторно
       if (existing?.status === 'generating') {
         return NextResponse.json({
           websiteId: existing.id,
@@ -209,23 +218,144 @@ export async function POST(request: Request) {
         .eq('user_id', user.id)
     }
 
-    // 7. Запускаем генерацию в фоне (fire-and-forget)
-    //    processGeneration использует adminClient — не зависит от сессии
-    processGeneration({
-      siteId: siteId!,
-      userId: user.id,
-      formData,
-      subscriptionStatus,
-    }).catch((e) => {
-      console.error('[generate-site] Background generation failed:', e)
-    })
+    // ── БЫСТРЫЙ ОТВЕТ ──
+    // Отвечаем клиенту сразу — он подпишется на Realtime и увидит результат
+    // Генерация продолжается в этом же запросе ниже (Vercel ждёт maxDuration)
+    //
+    // Используем streaming response — отправляем JSON сразу,
+    // а генерация продолжается пока stream открыт
+    const stream = new TransformStream()
+    const writer = stream.writable.getWriter()
+    const encoder = new TextEncoder()
 
-    // 8. Сразу отвечаем клиенту — не ждём генерации
-    console.log('[generate-site] Returning immediately, siteId:', siteId)
-
-    return NextResponse.json({
+    // Отправляем начальный ответ
+    const initialResponse = JSON.stringify({
       websiteId: siteId,
       status: 'generating',
+    })
+    writer.write(encoder.encode(initialResponse))
+
+    // Запускаем генерацию в фоне этого же запроса
+    const adminSupabase = await createAdminClient()
+
+    const generateInBackground = async () => {
+      try {
+        const prompt = buildPrompt(formData)
+        console.log('[generate-site] Prompt length:', prompt.length)
+
+        let generatedHTML = ''
+        let tokensUsed = 0
+
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+          console.log(`[generate-site] Attempt ${attempt}/${MAX_RETRIES}`)
+
+          const { data: logEntry } = await adminSupabase
+            .from('generation_logs')
+            .insert({
+              website_id: siteId,
+              prompt_used: prompt,
+              status: 'pending',
+              attempt_number: attempt,
+            })
+            .select('id')
+            .single()
+
+          const logId = logEntry?.id
+
+          try {
+            const currentPrompt =
+              attempt > 1
+                ? `${prompt}\n\nВАЖНО: Предыдущая попытка вернула некорректный HTML. Ответ должен начинаться строго с <!DOCTYPE html> и заканчиваться </html>.`
+                : prompt
+
+            const result = await generateWithClaude(currentPrompt, SYSTEM_PROMPT)
+            tokensUsed = result.tokensUsed
+            console.log(`[generate-site] Got response, tokens: ${tokensUsed}, length: ${result.content.length}`)
+
+            const extracted = extractHTML(result.content)
+            const isValid = validateHTML(extracted)
+            console.log(`[generate-site] HTML valid: ${isValid}`)
+
+            if (!isValid) {
+              await adminSupabase
+                .from('generation_logs')
+                .update({ raw_response: result.content.slice(0, 5000), status: 'failed', tokens_used: tokensUsed, error_message: 'Invalid HTML' })
+                .eq('id', logId)
+              continue
+            }
+
+            generatedHTML = extracted
+
+            await adminSupabase
+              .from('generation_logs')
+              .update({ raw_response: result.content.slice(0, 5000), status: 'success', tokens_used: tokensUsed })
+              .eq('id', logId)
+
+            break
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e)
+            console.error(`[generate-site] Generation error (attempt ${attempt}):`, msg)
+
+            await adminSupabase
+              .from('generation_logs')
+              .update({ status: 'failed', error_message: msg })
+              .eq('id', logId)
+          }
+        }
+
+        if (!generatedHTML) {
+          console.error('[generate-site] All attempts failed')
+          await adminSupabase
+            .from('websites')
+            .update({ status: 'draft' })
+            .eq('id', siteId)
+          return
+        }
+
+        // Постобработка
+        let finalHTML = sanitizeHTML(generatedHTML)
+
+        if (formData.photo_urls && formData.photo_urls.length > 0) {
+          finalHTML = injectPhotos(finalHTML, formData.photo_urls)
+        }
+
+        if (subscriptionStatus === 'trial') {
+          finalHTML = addWatermark(finalHTML)
+        }
+
+        const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'beauty-site.ru'
+        finalHTML = injectDomainLock(finalHTML, appDomain)
+        finalHTML = minifyHTML(finalHTML)
+
+        // Сохраняем — Realtime оповестит клиента
+        await adminSupabase
+          .from('websites')
+          .update({
+            generated_code: finalHTML,
+            prompt_used: prompt,
+            status: 'demo',
+          })
+          .eq('id', siteId)
+
+        console.log('[generate-site] Done, siteId:', siteId)
+      } catch (e) {
+        console.error('[generate-site] Background error:', e)
+        await adminSupabase
+          .from('websites')
+          .update({ status: 'draft' })
+          .eq('id', siteId)
+      } finally {
+        writer.close()
+      }
+    }
+
+    generateInBackground()
+
+    return new Response(stream.readable, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Transfer-Encoding': 'chunked',
+      },
     })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)

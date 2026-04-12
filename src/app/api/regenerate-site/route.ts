@@ -42,13 +42,12 @@ export async function POST(request: Request) {
     .update({ data_hash: null })
     .eq('id', websiteId)
 
-  // Вызываем generate-site
+  // Вызываем generate-site — он вернёт streaming response
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const res = await fetch(`${baseUrl}/api/generate-site`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      // Передаём cookies для авторизации
       Cookie: request.headers.get('cookie') ?? '',
     },
     body: JSON.stringify({
@@ -57,11 +56,23 @@ export async function POST(request: Request) {
     }),
   })
 
-  const data = await res.json()
-
   if (!res.ok) {
+    const data = await res.json()
     return NextResponse.json(data, { status: res.status })
   }
 
-  return NextResponse.json(data)
+  // Читаем первый chunk из streaming response
+  const reader = res.body?.getReader()
+  if (reader) {
+    const { value } = await reader.read()
+    const text = new TextDecoder().decode(value)
+    try {
+      const data = JSON.parse(text)
+      return NextResponse.json(data)
+    } catch {
+      return NextResponse.json({ websiteId, status: 'generating' })
+    }
+  }
+
+  return NextResponse.json({ websiteId, status: 'generating' })
 }
