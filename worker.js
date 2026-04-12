@@ -169,6 +169,8 @@ function minifyHTML(html) {
 
 const SYSTEM_PROMPT = 'Ты — профессиональный frontend-разработчик и UI/UX дизайнер. Генерируй только валидный HTML5+CSS код без каких-либо пояснений. Ответ должен начинаться с <!DOCTYPE html> и заканчиваться </html>.'
 
+const EDIT_SYSTEM_PROMPT = 'Ты — профессиональный frontend-разработчик. Вносишь точечные правки в HTML-код сайта строго по запросу пользователя. Ответ должен начинаться с <!DOCTYPE html> и заканчиваться </html>. Никакого текста, пояснений или markdown до или после HTML.'
+
 // ============================================================
 // Основная логика генерации
 // ============================================================
@@ -279,6 +281,78 @@ async function processGeneration(task) {
 }
 
 // ============================================================
+// Логика AI-правки
+// ============================================================
+async function processEdit(task) {
+  const { siteId, editLogId, userId, userMessage, htmlBefore, editCost } = task
+
+  console.log(`[worker] Starting edit for site ${siteId}: "${userMessage.slice(0, 80)}..."`) 
+
+  const prompt = `Ты — профессиональный frontend-разработчик. Тебе дан HTML-код сайта и запрос на правку.
+
+ПРАВИЛА:
+- Внеси ТОЛЬКО то изменение, которое просит пользователь — не трогай остальное
+- Сохрани все стили, шрифты, цвета, структуру и контент которые не упомянуты в запросе
+- Верни ПОЛНЫЙ HTML-код сайта начиная строго с <!DOCTYPE html> и заканчивая </html>
+- Никакого текста, пояснений или markdown до или после HTML
+
+ЗАПРОС ПОЛЬЗОВАТЕЛЯ:
+${userMessage}
+
+HTML САЙТА:
+${htmlBefore}`
+
+  try {
+    const result = await callRouterAI(EDIT_SYSTEM_PROMPT, prompt)
+    const { content, tokensUsed } = result
+    console.log(`[worker] Edit response, tokens: ${tokensUsed}`)
+
+    const extracted = extractHTML(content)
+    const isValid = validateHTML(extracted)
+
+    if (!isValid) {
+      console.error('[worker] Edit returned invalid HTML')
+      // Возвращаем баланс
+      await supabaseQuery('POST', 'rpc/topup_edit_balance', { p_user_id: userId, p_amount: editCost })
+      if (editLogId) {
+        await supabaseUpdate('edit_logs', editLogId, {
+          status: 'failed', tokens_used: tokensUsed,
+          error_message: 'AI вернул невалидный HTML',
+        }).catch(() => {})
+      }
+      return { success: false, error: 'Модель вернула некорректный HTML' }
+    }
+
+    // Постобработка
+    let finalHTML = sanitizeHTML(extracted)
+    finalHTML = injectDomainLock(finalHTML, APP_DOMAIN)
+    finalHTML = minifyHTML(finalHTML)
+
+    // Сохраняем
+    await supabaseUpdate('websites', siteId, { generated_code: finalHTML })
+
+    if (editLogId) {
+      await supabaseUpdate('edit_logs', editLogId, {
+        html_after: finalHTML, tokens_used: tokensUsed, status: 'success',
+      }).catch(() => {})
+    }
+
+    console.log(`[worker] Edit done! Site ${siteId}`)
+    return { success: true, tokensUsed }
+  } catch (e) {
+    console.error('[worker] Edit error:', e.message)
+    // Возвращаем баланс
+    await supabaseQuery('POST', 'rpc/topup_edit_balance', { p_user_id: userId, p_amount: editCost }).catch(() => {})
+    if (editLogId) {
+      await supabaseUpdate('edit_logs', editLogId, {
+        status: 'failed', error_message: e.message,
+      }).catch(() => {})
+    }
+    return { success: false, error: e.message }
+  }
+}
+
+// ============================================================
 // HTTP сервер
 // ============================================================
 const server = http.createServer(async (req, res) => {
@@ -337,6 +411,49 @@ const server = http.createServer(async (req, res) => {
     processGeneration(task).catch((e) => {
       console.error('[worker] Unhandled error:', e)
       supabaseUpdate('websites', task.siteId, { status: 'draft' }).catch(() => {})
+    })
+
+    return
+  }
+
+  // AI-правка
+  if (req.method === 'POST' && req.url === '/edit') {
+    const auth = req.headers['authorization'] || ''
+    if (WORKER_SECRET && auth !== `Bearer ${WORKER_SECRET}`) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Unauthorized' }))
+      return
+    }
+
+    let body = ''
+    for await (const chunk of req) body += chunk
+
+    let task
+    try {
+      task = JSON.parse(body)
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Invalid JSON' }))
+      return
+    }
+
+    if (!task.siteId || !task.userMessage || !task.htmlBefore) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Missing required fields' }))
+      return
+    }
+
+    // Сразу отвечаем
+    res.writeHead(202, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ accepted: true, siteId: task.siteId }))
+
+    // Правка в фоне
+    processEdit(task).catch((e) => {
+      console.error('[worker] Unhandled edit error:', e)
+      // Возвращаем баланс при критической ошибке
+      if (task.userId && task.editCost) {
+        supabaseQuery('POST', 'rpc/topup_edit_balance', { p_user_id: task.userId, p_amount: task.editCost }).catch(() => {})
+      }
     })
 
     return

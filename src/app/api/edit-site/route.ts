@@ -1,24 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { buildEditPrompt } from '@/lib/promptBuilder'
-import {
-  extractHTML,
-  validateHTML,
-  sanitizeHTML,
-  injectDomainLock,
-  minifyHTML,
-} from '@/lib/htmlUtils'
-import { generateWithClaude } from '@/lib/openrouter'
 import { validateEditMessage } from '@/lib/promptSafety'
 
-const EDIT_COST = 49 // рублей за одну правку
-const EDIT_SYSTEM_PROMPT =
-  'Ты — профессиональный frontend-разработчик. ' +
-  'Вносишь точечные правки в HTML-код сайта строго по запросу пользователя. ' +
-  'Ответ должен начинаться с <!DOCTYPE html> и заканчиваться </html>. ' +
-  'Никакого текста, пояснений или markdown до или после HTML.'
-
-export const maxDuration = 120
+const EDIT_COST = 49
 
 export async function POST(request: Request) {
   try {
@@ -42,7 +26,6 @@ export async function POST(request: Request) {
       userMessage = body.userMessage?.trim()
       if (!websiteId || !userMessage) throw new Error('Missing fields')
 
-      // Валидация сообщения на injection и вредоносный контент
       const validation = validateEditMessage(userMessage)
       if (!validation.valid) {
         return NextResponse.json(
@@ -58,9 +41,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // 3. Атомарное списание баланса — предотвращает race condition
-    //    Функция deduct_edit_balance проверяет и списывает в одной транзакции.
-    //    Возвращает новый баланс или -1 если недостаточно средств.
+    // 3. Атомарное списание баланса
     const { data: newBalance, error: deductError } = await supabase.rpc(
       'deduct_edit_balance',
       { p_user_id: user.id, p_amount: EDIT_COST }
@@ -68,14 +49,10 @@ export async function POST(request: Request) {
 
     if (deductError) {
       console.error('[edit-site] deduct_edit_balance error:', deductError)
-      return NextResponse.json(
-        { error: 'Ошибка списания баланса' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Ошибка списания баланса' }, { status: 500 })
     }
 
     if (newBalance === -1) {
-      // Получаем текущий баланс для информативного сообщения
       const { data: profile } = await supabase
         .from('users')
         .select('edit_balance')
@@ -93,7 +70,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // 4. Получаем сайт — проверяем владельца и наличие HTML
+    // 4. Получаем сайт
     const { data: site } = await supabase
       .from('websites')
       .select('id, generated_code, status')
@@ -101,160 +78,71 @@ export async function POST(request: Request) {
       .eq('user_id', user.id)
       .single()
 
-    if (!site) {
-      // Возвращаем списанные средства
+    if (!site || !site.generated_code) {
       await supabase.rpc('topup_edit_balance', { p_user_id: user.id, p_amount: EDIT_COST })
       return NextResponse.json(
-        { error: 'Сайт не найден' },
-        { status: 404 }
+        { error: site ? 'У сайта нет сгенерированного кода' : 'Сайт не найден' },
+        { status: site ? 400 : 404 }
       )
     }
 
-    if (!site.generated_code) {
-      // Возвращаем списанные средства
-      await supabase.rpc('topup_edit_balance', { p_user_id: user.id, p_amount: EDIT_COST })
-      return NextResponse.json(
-        { error: 'У сайта нет сгенерированного кода' },
-        { status: 400 }
-      )
-    }
-
-    const htmlBefore = site.generated_code
-
-    // 5. Создаём запись лога со статусом pending
+    // 5. Создаём запись лога
     const { data: logEntry } = await supabase
       .from('edit_logs')
       .insert({
         website_id: websiteId,
         user_id: user.id,
         user_message: userMessage,
-        html_before: htmlBefore,
+        html_before: site.generated_code,
         status: 'pending',
         amount_charged: EDIT_COST,
       })
       .select('id')
       .single()
 
-    const logId = logEntry?.id
+    // 6. Отправляем задачу на worker
+    const workerUrl = process.env.WORKER_URL
+    const workerSecret = process.env.WORKER_SECRET
 
-    // 6. Строим промпт и вызываем модель
-    const prompt = buildEditPrompt(htmlBefore, userMessage)
-
-    let rawContent: string
-    let tokensUsed: number
+    if (!workerUrl) {
+      await supabase.rpc('topup_edit_balance', { p_user_id: user.id, p_amount: EDIT_COST })
+      return NextResponse.json({ error: 'Сервер редактирования не настроен' }, { status: 500 })
+    }
 
     try {
-      const result = await generateWithClaude(prompt, EDIT_SYSTEM_PROMPT)
-      rawContent = result.content
-      tokensUsed = result.tokensUsed
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
-      console.error('[edit-site] AI error:', msg)
-
-      // Возвращаем средства при ошибке AI
+      await fetch(`${workerUrl}/edit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${workerSecret ?? ''}`,
+        },
+        body: JSON.stringify({
+          siteId: websiteId,
+          editLogId: logEntry?.id ?? null,
+          userId: user.id,
+          userMessage,
+          htmlBefore: site.generated_code,
+          editCost: EDIT_COST,
+        }),
+      })
+    } catch (e) {
+      console.error('[edit-site] Failed to reach worker:', e)
       await supabase.rpc('topup_edit_balance', { p_user_id: user.id, p_amount: EDIT_COST })
-
-      if (logId) {
-        await supabase
-          .from('edit_logs')
-          .update({ status: 'failed', error_message: `AI error: ${msg}` })
-          .eq('id', logId)
-      }
-
       return NextResponse.json(
-        { error: `Ошибка обращения к AI: ${msg}` },
-        { status: 500 }
+        { error: 'Сервер редактирования временно недоступен.' },
+        { status: 503 }
       )
     }
 
-    // 7. Извлекаем и валидируем HTML
-    const extracted = extractHTML(rawContent)
-    const isValid = validateHTML(extracted)
-
-    if (!isValid) {
-      console.error('[edit-site] Invalid HTML from AI')
-
-      // Возвращаем средства при невалидном HTML
-      await supabase.rpc('topup_edit_balance', { p_user_id: user.id, p_amount: EDIT_COST })
-
-      if (logId) {
-        await supabase
-          .from('edit_logs')
-          .update({
-            status: 'failed',
-            tokens_used: tokensUsed,
-            error_message: 'AI вернул невалидный HTML',
-          })
-          .eq('id', logId)
-      }
-
-      return NextResponse.json(
-        { error: 'Модель вернула некорректный HTML. Попробуйте переформулировать запрос.' },
-        { status: 500 }
-      )
-    }
-
-    // 8. Постобработка — те же шаги что при генерации
-    let finalHTML = sanitizeHTML(extracted)
-
-    const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'beauty-site.ru'
-    finalHTML = injectDomainLock(finalHTML, appDomain)
-    finalHTML = minifyHTML(finalHTML)
-
-    // 9. Сохраняем новый HTML в websites
-    const { error: updateError } = await supabase
-      .from('websites')
-      .update({ generated_code: finalHTML })
-      .eq('id', websiteId)
-
-    if (updateError) {
-      console.error('[edit-site] DB update error:', updateError)
-
-      // Возвращаем средства при ошибке сохранения
-      await supabase.rpc('topup_edit_balance', { p_user_id: user.id, p_amount: EDIT_COST })
-
-      if (logId) {
-        await supabase
-          .from('edit_logs')
-          .update({
-            status: 'failed',
-            tokens_used: tokensUsed,
-            error_message: `DB error: ${updateError.message}`,
-          })
-          .eq('id', logId)
-      }
-
-      return NextResponse.json(
-        { error: 'Ошибка сохранения изменений' },
-        { status: 500 }
-      )
-    }
-
-    // 10. Обновляем лог — всё прошло успешно (баланс уже списан в шаге 3)
-    if (logId) {
-      await supabase
-        .from('edit_logs')
-        .update({
-          html_after: finalHTML,
-          tokens_used: tokensUsed,
-          status: 'success',
-        })
-        .eq('id', logId)
-    }
-
-    console.log('[edit-site] Done, websiteId:', websiteId, 'tokens:', tokensUsed, 'newBalance:', newBalance)
-
+    // 7. Отвечаем клиенту — правка в процессе
     return NextResponse.json({
       success: true,
-      newBalance,
-      tokensUsed,
+      status: 'processing',
+      newBalance: newBalance as number,
     })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
     console.error('[edit-site] Unhandled error:', msg)
-    return NextResponse.json(
-      { error: `Внутренняя ошибка сервера: ${msg}` },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: `Внутренняя ошибка сервера: ${msg}` }, { status: 500 })
   }
 }

@@ -15,6 +15,7 @@ import {
   Send,
   Sparkles,
   Wallet,
+  Maximize2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Button from '@/components/ui/Button'
@@ -37,6 +38,10 @@ interface ChatMessage {
 
 const EDIT_COST = 49
 const DESKTOP_RENDER_WIDTH = 1280
+
+function getPreviewUrl(siteId: string): string {
+  return `/api/preview/${siteId}`
+}
 
 function getSiteUrl(subdomain: string | null, status: string): string | null {
   if (!subdomain || status !== 'published') return null
@@ -63,6 +68,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
   )
   const [iframeKey, setIframeKey] = useState(0)
   const [mobileTab, setMobileTab] = useState<'preview' | 'chat'>('preview')
+  const hasSite = !!(site.generated_code) || siteStatus === 'demo' || siteStatus === 'published'
 
   // refs для масштабирования desktop-режима
   const containerRef = useRef<HTMLDivElement>(null)
@@ -80,13 +86,13 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
   const [balance, setBalance] = useState(initialBalance)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // ── Supabase Realtime + polling fallback: следим за статусом генерации ──
+  // ── Supabase Realtime + polling: следим за изменениями сайта ──
   useEffect(() => {
-    if (!isGenerating) return
+    // Слушаем всегда — и для генерации, и для правок
+    if (!isGenerating && !editing) return
 
     const supabase = createClient()
 
-    // Realtime подписка
     const channel = supabase
       .channel(`website-${site.id}`)
       .on(
@@ -99,48 +105,69 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
         },
         (payload) => {
           const newStatus = payload.new?.status
-          console.log('[realtime] Website status changed:', newStatus)
-          handleStatusChange(newStatus)
+          const hasCode = !!payload.new?.generated_code
+          console.log('[realtime] Website updated, status:', newStatus, 'hasCode:', hasCode)
+
+          if (isGenerating) {
+            handleGenerationStatusChange(newStatus)
+          }
+          if (editing && hasCode) {
+            // Правка завершена — обновляем iframe
+            handleEditComplete()
+          }
         }
       )
       .subscribe()
 
-    // Polling fallback — на случай если Realtime не работает (напр. CSP блокирует WSS)
+    // Polling fallback
     const pollInterval = setInterval(async () => {
       const { data } = await supabase
         .from('websites')
-        .select('status')
+        .select('status, generated_code')
         .eq('id', site.id)
         .single()
 
-      if (data?.status && data.status !== 'generating') {
-        console.log('[polling] Website status changed:', data.status)
-        handleStatusChange(data.status)
+      if (!data) return
+
+      if (isGenerating && data.status !== 'generating') {
+        console.log('[polling] Generation status changed:', data.status)
+        handleGenerationStatusChange(data.status)
       }
     }, 5000)
-
-    function handleStatusChange(newStatus: string) {
-      if (newStatus === 'demo' || newStatus === 'published') {
-        setSiteStatus(newStatus as Website['status'])
-        setIsGenerating(false)
-        setIframeKey(k => k + 1)
-        toast.success('Сайт успешно создан!')
-        router.refresh()
-      } else if (newStatus === 'draft') {
-        setSiteStatus('draft')
-        setIsGenerating(false)
-        toast.error('Не удалось сгенерировать сайт. Попробуйте перегенерировать.')
-      }
-    }
 
     return () => {
       supabase.removeChannel(channel)
       clearInterval(pollInterval)
     }
-  }, [isGenerating, site.id])
+  }, [isGenerating, editing, site.id])
 
-  // Масштабирование iframe под контейнер в desktop-режиме.
-  // Пересчитывается при: смене viewMode, смене iframeKey, ресайзе окна.
+  function handleGenerationStatusChange(newStatus: string) {
+    if (newStatus === 'demo' || newStatus === 'published') {
+      setSiteStatus(newStatus as Website['status'])
+      setIsGenerating(false)
+      setIframeKey(k => k + 1)
+      toast.success('Сайт успешно создан!')
+      router.refresh()
+    } else if (newStatus === 'draft') {
+      setSiteStatus('draft')
+      setIsGenerating(false)
+      toast.error('Не удалось сгенерировать сайт. Попробуйте перегенерировать.')
+    }
+  }
+
+  function handleEditComplete() {
+    setEditing(false)
+    setIframeKey(k => k + 1)
+    setMessages(prev => [
+      ...prev,
+      {
+        role: 'assistant',
+        text: `Готово! Правка внесена. Списано ${EDIT_COST} ₽, остаток: ${balance} ₽.`,
+      },
+    ])
+  }
+
+  // Масштабирование iframe
   useEffect(() => {
     if (viewMode !== 'desktop') return
 
@@ -155,7 +182,6 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
       iframe.style.transformOrigin = 'top left'
     }
 
-    // небольшая задержка чтобы DOM успел отрисоваться после смены viewMode
     const t = setTimeout(applyScale, 10)
     window.addEventListener('resize', applyScale)
     return () => {
@@ -168,7 +194,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // --- handlers превью ---
+  // --- handlers ---
 
   const handleRegenerate = async () => {
     setRegenerating(true)
@@ -180,8 +206,6 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-
-      // Генерация запущена в фоне — показываем статус генерации
       setIsGenerating(true)
       setSiteStatus('generating')
       toast.success('Перегенерация запущена...')
@@ -214,8 +238,6 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
     }
   }
 
-  // --- handler чата ---
-
   const handleEdit = async () => {
     const message = inputValue.trim()
     if (!message || editing) return
@@ -246,12 +268,13 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
       const data = await res.json()
 
       if (!res.ok) {
+        setEditing(false)
         if (data.code === 'INSUFFICIENT_BALANCE') {
           setMessages(prev => [
             ...prev,
             {
               role: 'assistant',
-              text: `На балансе недостаточно средств. Для правки нужно ${EDIT_COST} ₽, у вас ${data.balance} ₽. Пополните баланс в разделе «Биллинг».`,
+              text: `На балансе недостаточно средств. Для правки нужно ${EDIT_COST} ₽, у вас ${data.balance} ₽.`,
             },
           ])
           return
@@ -259,25 +282,47 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
         throw new Error(data.error)
       }
 
+      // Баланс списан, правка отправлена на worker
       setBalance(data.newBalance)
-      setIframeKey(k => k + 1)
-      setMessages(prev => [
-        ...prev,
-        {
-          role: 'assistant',
-          text: `Готово! Правка внесена. Списано ${EDIT_COST} ₽, остаток: ${data.newBalance} ₽.`,
-        },
-      ])
+
+      // Ждём обновления через polling/realtime — handleEditComplete сработает
+      // Запускаем polling для правок отдельно (быстрее чем 5 сек)
+      const editPoll = setInterval(async () => {
+        const supabase = createClient()
+        const { data: updated } = await supabase
+          .from('websites')
+          .select('generated_code')
+          .eq('id', site.id)
+          .single()
+
+        // Проверяем что HTML изменился
+        if (updated?.generated_code && updated.generated_code !== site.generated_code) {
+          clearInterval(editPoll)
+          handleEditComplete()
+        }
+      }, 3000)
+
+      // Таймаут — если за 5 минут не дождались
+      setTimeout(() => {
+        clearInterval(editPoll)
+        if (editing) {
+          setEditing(false)
+          setMessages(prev => [
+            ...prev,
+            { role: 'assistant', text: 'Правка занимает больше времени чем обычно. Обновите страницу через минуту.' },
+          ])
+        }
+      }, 300000)
+
     } catch (e: unknown) {
+      setEditing(false)
       setMessages(prev => [
         ...prev,
         {
           role: 'assistant',
-          text: `Не удалось внести правку: ${e instanceof Error ? e.message : 'неизвестная ошибка'}. Попробуйте ещё раз.`,
+          text: `Не удалось внести правку: ${e instanceof Error ? e.message : 'неизвестная ошибка'}.`,
         },
       ])
-    } finally {
-      setEditing(false)
     }
   }
 
@@ -339,7 +384,20 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
           </button>
         </div>
 
-        <Button variant="secondary" size="sm" loading={regenerating} onClick={handleRegenerate} disabled={isGenerating}>
+        {/* Открыть на полную страницу */}
+        {hasSite && (
+          <a
+            href={getPreviewUrl(site.id)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            title="Открыть на полную страницу"
+          >
+            <Maximize2 className="h-4 w-4" />
+          </a>
+        )}
+
+        <Button variant="secondary" size="sm" loading={regenerating} onClick={handleRegenerate}>
           <RefreshCw className="h-4 w-4" />
           Перегенерировать
         </Button>
@@ -348,7 +406,6 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
           variant="secondary"
           size="sm"
           onClick={() => router.push(`/dashboard/create?id=${site.id}`)}
-          disabled={isGenerating}
         >
           <Edit className="h-4 w-4" />
           Изменить данные
@@ -380,10 +437,10 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
         )}
       </div>
 
-      {/* ── Основная область: iframe + чат ── */}
+      {/* ── Основная область ── */}
       <div className="flex flex-col flex-1 overflow-hidden">
 
-        {/* Вкладки только на мобильных */}
+        {/* Вкладки мобильных */}
         <div className="flex md:hidden border-b border-gray-200 bg-white shrink-0">
           <button
             onClick={() => setMobileTab('preview')}
@@ -409,20 +466,17 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
           </button>
         </div>
 
-        {/* Основной layout */}
         <div className="flex flex-1 overflow-hidden">
 
-        {/* ── Превью сайта ── */}
+        {/* ── Превью ── */}
         <div className={cn(
           'flex-1 bg-gray-100 flex items-start justify-center overflow-hidden p-3',
           mobileTab === 'chat' ? 'hidden md:flex' : 'flex'
         )}>
           {isGenerating ? (
             <div className="flex flex-col items-center justify-center gap-4 mt-20">
-              <div className="relative">
-                <div className="w-16 h-16 rounded-2xl bg-brand-100 flex items-center justify-center">
-                  <Sparkles className="h-8 w-8 text-brand-500 animate-pulse" />
-                </div>
+              <div className="w-16 h-16 rounded-2xl bg-brand-100 flex items-center justify-center">
+                <Sparkles className="h-8 w-8 text-brand-500 animate-pulse" />
               </div>
               <div className="text-center">
                 <p className="text-lg font-semibold text-gray-900">Генерируем ваш сайт...</p>
@@ -433,7 +487,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
                 <span className="text-xs text-gray-400">AI создаёт дизайн и вёрстку</span>
               </div>
             </div>
-          ) : site.generated_code || siteStatus === 'demo' || siteStatus === 'published' ? (
+          ) : hasSite ? (
             <div
               ref={containerRef}
               className={cn(
@@ -442,19 +496,17 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
               )}
             >
               {viewMode === 'desktop' ? (
-                // iframe рендерится в DESKTOP_RENDER_WIDTH и масштабируется через transform: scale
                 <iframe
                   ref={iframeRef}
                   key={`desktop-${iframeKey}`}
-                  src={`/api/preview/${site.id}`}
+                  src={getPreviewUrl(site.id)}
                   style={{ border: 'none', display: 'block', position: 'absolute', top: 0, left: 0 }}
                   title="Предпросмотр сайта"
                 />
               ) : (
-                // Mobile: обычный iframe 390px, старые transform-стили не применяются
                 <iframe
                   key={`mobile-${iframeKey}`}
-                  src={`/api/preview/${site.id}`}
+                  src={getPreviewUrl(site.id)}
                   style={{ border: 'none', display: 'block', width: '100%', height: '100%' }}
                   title="Предпросмотр сайта"
                 />
@@ -468,13 +520,11 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
           )}
         </div>
 
-        {/* ── Панель чата ── */}
+        {/* ── Чат ── */}
         <div className={cn(
           'w-full md:w-80 shrink-0 border-l border-gray-200 bg-white flex flex-col',
           mobileTab === 'preview' ? 'hidden md:flex' : 'flex'
         )}>
-
-          {/* Заголовок */}
           <div className="px-4 py-3 border-b border-gray-100">
             <div className="flex items-center gap-2 mb-1">
               <Sparkles className="h-4 w-4 text-brand-600" />
@@ -488,27 +538,21 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
               <span className="text-xs text-gray-400">{EDIT_COST} ₽ / правка</span>
             </div>
             {balance < EDIT_COST && (
-              <a
-                href="/dashboard/billing"
-                className="mt-2 block text-center text-xs bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors rounded-md py-1.5 font-medium"
-              >
+              <a href="/dashboard/billing" className="mt-2 block text-center text-xs bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors rounded-md py-1.5 font-medium">
                 Пополнить баланс →
               </a>
             )}
           </div>
 
-          {/* История сообщений */}
           <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
             {messages.map((msg, i) => (
               <div key={i} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
-                <div
-                  className={cn(
-                    'max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed',
-                    msg.role === 'user'
-                      ? 'bg-brand-600 text-white rounded-br-sm'
-                      : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                  )}
-                >
+                <div className={cn(
+                  'max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed',
+                  msg.role === 'user'
+                    ? 'bg-brand-600 text-white rounded-br-sm'
+                    : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                )}>
                   {msg.text}
                 </div>
               </div>
@@ -529,7 +573,6 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Поле ввода */}
           <div className="px-3 py-3 border-t border-gray-100">
             <div className="flex gap-2 items-end">
               <textarea
@@ -556,7 +599,6 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
           </div>
         </div>
         </div>
-        {/* конец основного layout */}
       </div>
 
       {/* ── Баннер демо ── */}
