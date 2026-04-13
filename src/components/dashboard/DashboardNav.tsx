@@ -32,7 +32,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
         .from('support_chats')
         .select('unread_by_user')
         .eq('user_id', (await supabase.auth.getUser()).data.user?.id ?? '')
-        .single()
+        .maybeSingle()
       setUnreadCount(data?.unread_by_user ?? 0)
     }
     loadUnread()
