@@ -24,8 +24,8 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Страницы приложения
-        source: '/((?!api/site).*)',
+        // Страницы приложения (исключаем api/site и api/preview — у них свои правила)
+        source: '/((?!api/site|api/preview).*)',
         headers: [
           { key: 'X-Content-Type-Options',    value: 'nosniff' },
           { key: 'X-Frame-Options',           value: 'SAMEORIGIN' },
@@ -45,6 +45,27 @@ const nextConfig = {
               "frame-ancestors 'self'",
             ].join('; '),
           },
+        ],
+      },
+      {
+        // Превью сайтов в iframe — открытые заголовки как у клиентских сайтов
+        source: '/api/preview/(.*)',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options',        value: 'SAMEORIGIN' },
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src *",
+              "script-src * 'unsafe-inline' 'unsafe-eval'",
+              "style-src * 'unsafe-inline'",
+              "img-src * data: blob: https://storage.yandexcloud.net",
+              "font-src * data:",
+              "connect-src *",
+              "frame-ancestors 'self' https://beauty-site.ru https://*.beauty-site.ru",
+            ].join('; '),
+          },
+          { key: 'Cache-Control', value: 'no-store' },
         ],
       },
       {
