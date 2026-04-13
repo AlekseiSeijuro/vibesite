@@ -96,12 +96,12 @@ export default function Step6Photos() {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { 'image/jpeg': [], 'image/png': [], 'image/webp': [] },
-    maxSize: 10 * 1024 * 1024, // 10MB
+    maxSize: 4.5 * 1024 * 1024, // 4.5MB
     disabled: photos.length >= 10,
     onDropRejected: (files) => {
       files.forEach((f) => {
         if (f.errors[0]?.code === 'file-too-large') {
-          toast.error(`${f.file.name}: файл больше 10 МБ`)
+          toast.error(`${f.file.name}: файл больше 4.5 МБ`)
         } else {
           toast.error(`${f.file.name}: неподдерживаемый формат`)
         }
@@ -179,7 +179,7 @@ export default function Step6Photos() {
             {isDragActive ? 'Отпустите файлы' : 'Перетащите фото или нажмите для выбора'}
           </p>
           <p className="text-xs text-gray-400 mt-1">
-            JPEG, PNG, WebP — до 10 МБ каждый. Максимум {10 - photos.length} фото.
+            JPEG, PNG, WebP — до 4.5 МБ каждый. Максимум {10 - photos.length} фото.
           </p>
         </div>
       )}

@@ -3,7 +3,7 @@ import { uploadToS3 } from '@/lib/s3'
 import { NextResponse } from 'next/server'
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
-const MAX_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_SIZE = 4.5 * 1024 * 1024 // 4.5MB
 
 export async function POST(request: Request) {
   // Проверка авторизации
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   // Проверка размера
   if (file.size > MAX_SIZE) {
     return NextResponse.json(
-      { error: 'Файл превышает 10 МБ' },
+      { error: 'Файл превышает 4.5 МБ' },
       { status: 400 }
     )
   }
