@@ -494,8 +494,8 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
             <div
               ref={containerRef}
               className={cn(
-                'relative bg-white shadow-xl rounded-lg overflow-hidden h-full',
-                viewMode === 'desktop' ? 'w-full' : 'w-[390px]'
+                'relative bg-white shadow-xl rounded-lg overflow-hidden h-full mx-auto',
+                viewMode === 'desktop' ? 'w-full' : 'w-full max-w-[390px]'
               )}
             >
               {viewMode === 'desktop' ? (
@@ -503,6 +503,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
                   ref={iframeRef}
                   key={`desktop-${iframeKey}`}
                   src={getPreviewUrl(site.id)}
+                  sandbox="allow-scripts allow-same-origin"
                   style={{ border: 'none', display: 'block', position: 'absolute', top: 0, left: 0 }}
                   title="Предпросмотр сайта"
                 />
@@ -510,6 +511,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
                 <iframe
                   key={`mobile-${iframeKey}`}
                   src={getPreviewUrl(site.id)}
+                  sandbox="allow-scripts allow-same-origin"
                   style={{ border: 'none', display: 'block', width: '100%', height: '100%' }}
                   title="Предпросмотр сайта"
                 />
