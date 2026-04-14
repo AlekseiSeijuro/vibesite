@@ -497,7 +497,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
               ref={containerRef}
               className={cn(
                 'relative bg-white md:shadow-xl md:rounded-lg overflow-hidden h-full mx-auto',
-                viewMode === 'desktop' ? 'w-full' : 'w-full max-w-[390px]'
+                viewMode === 'desktop' ? 'w-full' : 'w-full md:max-w-[390px]'
               )}
             >
               {viewMode === 'desktop' ? (
