@@ -97,10 +97,10 @@ function SiteCard({ site }: { site: Website }) {
             style={{
               position: 'absolute',
               top: 0,
-              left: 0,
+              left: '50%',
               width: '1280px',
               height: '800px',
-              transform: 'scale(0.28)',
+              transform: 'scale(0.28) translateX(-50%)',
               transformOrigin: 'top left',
               pointerEvents: 'none',
               overflow: 'hidden',
