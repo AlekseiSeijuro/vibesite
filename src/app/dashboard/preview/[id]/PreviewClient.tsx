@@ -56,7 +56,9 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
   const router = useRouter()
 
   // --- превью ---
-  const [viewMode, setViewMode] = useState<ViewMode>('desktop')
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'desktop'
+  )
   const [regenerating, setRegenerating] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [siteStatus, setSiteStatus] = useState(site.status)
@@ -473,7 +475,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
 
         {/* ── Превью ── */}
         <div className={cn(
-          'flex-1 bg-gray-100 flex items-start justify-center overflow-hidden p-3',
+          'flex-1 bg-gray-100 flex items-start justify-center overflow-hidden p-0 md:p-3',
           mobileTab === 'chat' ? 'hidden md:flex' : 'flex'
         )}>
           {isGenerating ? (
@@ -494,7 +496,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
             <div
               ref={containerRef}
               className={cn(
-                'relative bg-white shadow-xl rounded-lg overflow-hidden h-full mx-auto',
+                'relative bg-white md:shadow-xl md:rounded-lg overflow-hidden h-full mx-auto',
                 viewMode === 'desktop' ? 'w-full' : 'w-full max-w-[390px]'
               )}
             >
