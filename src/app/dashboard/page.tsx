@@ -100,15 +100,15 @@ function SiteCard({ site }: { site: Website }) {
               left: '50%',
               width: '1280px',
               height: '800px',
-              transform: 'scale(0.28) translateX(-50%)',
-              transformOrigin: 'top left',
+              transform: 'translateX(-50%) scale(0.28)',
+              transformOrigin: 'top center',
               pointerEvents: 'none',
               overflow: 'hidden',
             }}
           >
             <iframe
               src={`/api/preview/${site.id}`}
-              sandbox=""
+              sandbox="allow-scripts allow-same-origin"
               title={`preview-${site.id}`}
               loading="lazy"
               style={{
