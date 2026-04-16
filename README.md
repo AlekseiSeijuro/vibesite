@@ -1,15 +1,28 @@
-# Vibesite — AI-лендинг для бьюти-сферы
+# Vibesite — AI-генератор сайтов для бьюти-мастеров
 
-Сервис автоматической генерации сайтов-визиток для мастеров и салонов красоты с помощью Claude AI.
+SaaS-сервис для автоматического создания сайтов-визиток для мастеров и салонов красоты. Пользователь заполняет анкету (ниша, услуги, контакты, фото), система формирует промпт и через Claude AI генерирует готовый HTML/CSS сайт.
+
+**Продакшн:** [beauty-site.ru](https://beauty-site.ru) · Репозиторий: `AlekseiSeijuro/vibesite`
+
+---
 
 ## Стек
 
-- **Frontend/Backend:** Next.js 14 (App Router) + TypeScript
-- **База данных:** Supabase (PostgreSQL + Auth + RLS)
-- **Файлы:** Yandex Cloud Object Storage (S3)
-- **AI:** RouterAI → Claude Sonnet (генерация HTML/CSS)
-- **Платежи:** ЮKassa
-- **Хостинг:** Vercel
+| Параметр | Значение |
+|---|---|
+| Frontend / Backend | Next.js 14 (App Router) + TypeScript |
+| База данных | Supabase (PostgreSQL + Auth + RLS) |
+| Хранилище файлов | Yandex Cloud Object Storage (S3) |
+| AI генерация | RouterAI → Claude Sonnet (anthropic/claude-sonnet-4-5) |
+| Платежи | ЮKassa (боевой магазин) |
+| Хостинг | Vercel + VPS Selectel (Nginx прокси) |
+| Стили | Tailwind CSS |
+| Тестирование | Vitest + Testing Library |
+| Управление состоянием | Zustand |
+| Валидация форм | React Hook Form + Zod |
+| Уведомления | Sonner |
+| Иконки | Lucide React |
+| Аналитика | Яндекс.Метрика + Supabase analytics_events |
 
 ---
 
@@ -24,8 +37,6 @@ npm install
 
 ### 2. Переменные окружения
 
-Скопируй файл примера и заполни значения:
-
 ```bash
 copy .env.local.example .env.local
 ```
@@ -39,15 +50,24 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...
 ROUTERAI_API_KEY=sk-...
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 NEXT_PUBLIC_APP_DOMAIN=vibesite.ru
+NEXT_PUBLIC_YM_ID=                        # номер счётчика Яндекс.Метрики
 ```
 
 ### 3. База данных
 
-Открой [supabase.com](https://supabase.com) → Dashboard → SQL Editor и выполни миграции по порядку:
+Открой Supabase → Dashboard → SQL Editor и выполни миграции по порядку:
 
 ```
-supabase/migrations/001_initial_schema.sql   — таблицы, RLS, триггеры
-supabase/migrations/002_fix_rls_recursion.sql — исправление политик
+001_initial_schema.sql          — таблицы, RLS, триггеры
+002_fix_rls_recursion.sql       — исправление политик
+003_edit_site_feature.sql       — AI-редактор сайта
+004_support_chat.sql            — чат поддержки
+005_remove_subscription_website_id.sql
+006_subscriptions_type.sql
+007_atomic_balance_and_rls_fixes.sql
+008_sync_role_to_auth_metadata.sql
+009_async_generation.sql        — асинхронная генерация через worker
+010_analytics_events.sql        — таблица аналитики
 ```
 
 ### 4. Запуск
@@ -66,44 +86,43 @@ npm run dev
 src/
 ├── app/
 │   ├── (auth)/              # Страницы входа/регистрации
-│   │   ├── login/
-│   │   ├── register/
-│   │   └── reset-password/
-│   ├── auth/                # OAuth callback, смена пароля
-│   ├── dashboard/           # Личный кабинет
+│   ├── auth/                # OAuth callback
+│   ├── dashboard/
 │   │   ├── create/          # Мастер создания сайта (6 шагов)
 │   │   ├── preview/[id]/    # Предпросмотр и публикация
 │   │   ├── billing/         # Подписка и платежи
+│   │   ├── support/         # Чат поддержки
 │   │   └── settings/        # Настройки аккаунта
-│   ├── admin/               # Административная панель
+│   ├── admin/
 │   │   ├── page.tsx         # Пользователи
+│   │   ├── analytics/       # Дашборд аналитики ← новое
 │   │   ├── sites/           # Управление сайтами
 │   │   ├── orders/          # Заявки на свой домен
+│   │   ├── support/         # Чаты поддержки
 │   │   └── logs/            # Логи генерации
-│   ├── api/
-│   │   ├── generate-site/   # Генерация HTML через RouterAI
-│   │   ├── publish-site/    # Публикация сайта
-│   │   ├── regenerate-site/ # Перегенерация
-│   │   ├── upload-photo/    # Загрузка фото в S3
-│   │   ├── payments/        # ЮKassa: создание платежа и webhook
-│   │   ├── site/[subdomain] # Отдача клиентских сайтов
-│   │   ├── admin/           # Админ API
-│   │   └── account/         # Управление аккаунтом
-│   ├── pricing/             # Страница тарифов
-│   └── site/                # Заглушка для поддоменов
+│   └── api/
+│       ├── generate-site/   # Генерация HTML через RouterAI
+│       ├── publish-site/    # Публикация сайта
+│       ├── edit-site/       # AI-правки сайта
+│       ├── upload-photo/    # Загрузка фото в S3
+│       ├── payments/        # ЮKassa: платёж и webhook
+│       ├── preview/[id]/    # Превью для iframe
+│       ├── site/[subdomain] # Отдача клиентских сайтов
+│       └── support/         # API чата поддержки
 ├── components/
-│   ├── create/              # Шаги формы (Step1–Step6)
+│   ├── create/              # Шаги формы Step1–Step6
 │   ├── dashboard/           # Навигация, кнопки оплаты
-│   └── ui/                  # Input, Button
+│   ├── ui/                  # Input, Button
+│   └── YandexMetrika.tsx    # Скрипт счётчика ← новое
 ├── lib/
-│   ├── supabase/            # Клиенты (browser/server)
+│   ├── supabase/            # Клиенты browser/server
 │   ├── yookassa/            # ЮKassa клиент и тарифы
 │   ├── validation/          # Zod схемы
-│   ├── openrouter.ts        # RouterAI клиент
+│   ├── analytics.ts         # Хелпер track() ← новое
 │   ├── promptBuilder.ts     # Построение промпта
+│   ├── promptSafety.ts      # Защита от prompt injection
 │   ├── htmlUtils.ts         # Обработка HTML
 │   ├── s3.ts                # Yandex Cloud S3
-│   ├── auth-helpers.ts      # requireAuth/requireAdmin
 │   └── utils.ts             # Утилиты
 ├── store/
 │   └── createSiteStore.ts   # Zustand стор формы
@@ -114,36 +133,65 @@ src/
 
 ---
 
+## Аналитика
+
+### Архитектура
+
+События дублируются в два места одновременно:
+- **Яндекс.Метрика** — поведение на сайте, Вебвизор, воронки
+- **Supabase `analytics_events`** — продуктовые метрики, дашборд `/admin/analytics`
+
+### Отслеживаемые события
+
+| Событие | Где вызывается | Параметры |
+|---|---|---|
+| `wizard_step_completed` | Step1–Step6 | `step`, `niche`, `style` |
+| `site_generated` | api/generate-site | `website_id`, `niche`, `style` |
+| `site_published` | api/publish-site | `website_id`, `subdomain` |
+| `site_edit_requested` | api/edit-site | `website_id` |
+| `payment_success` | api/payments/webhook | `plan`, `amount` |
+| `preview_opened` | PreviewClient | `website_id` |
+| `support_message_sent` | support/page | — |
+
+### Дашборд аналитики
+
+Доступен по адресу `/admin/analytics` (только для роли `admin`). Показывает:
+- KPI: генерации, оплаты, конверсия %, MAU
+- Воронку по 6 шагам мастера с отсевом
+- DAU за 7 дней
+- AI-активность (генерации + правки) за 14 дней
+
+### Цели в Яндекс.Метрике
+
+Создать вручную: Метрика → счётчик → Цели → Добавить → тип «JavaScript-событие»
+
+| Название | Идентификатор |
+|---|---|
+| Шаг мастера пройден | `wizard_step_completed` |
+| Сайт сгенерирован | `site_generated` |
+| Сайт опубликован | `site_published` |
+| AI-правка | `site_edit_requested` |
+| Оплата | `payment_success` |
+
+---
+
+## Тестирование
+
+```bash
+npm test          # watch-режим
+npm run test:run  # однократный запуск (CI/CD)
+```
+
+Покрытие (~170 тестов): HTML-обработка, prompt injection защита, валидация данных, бизнес-логика тарифов, API роуты.
+
+---
+
 ## Деплой на Vercel
 
-### 1. Подготовка репозитория
-
-```bash
-git init
-git add .
-git commit -m "initial commit"
-```
-
-Создай репозиторий на GitHub и запушь:
-
-```bash
-git remote add origin https://github.com/твой-аккаунт/vibesite.git
-git push -u origin main
-```
-
-### 2. Подключение к Vercel
-
-1. Зайди на [vercel.com](https://vercel.com) и войди через GitHub
-2. Нажми **Add New Project**
-3. Выбери репозиторий `vibesite`
-4. Vercel автоматически определит Next.js — нажми **Deploy**
-
-### 3. Переменные окружения на Vercel
-
-В Dashboard проекта → **Settings → Environment Variables** добавь все переменные из `.env.local`:
+### Переменные окружения (Vercel Dashboard → Settings → Environment Variables)
 
 | Переменная | Где взять |
-|-----------|-----------|
+|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Settings → API |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API |
@@ -156,71 +204,43 @@ git push -u origin main
 | `YC_S3_REGION` | `ru-central1` |
 | `YOOKASSA_SHOP_ID` | ЮKassa → Настройки → Ключи API |
 | `YOOKASSA_SECRET_KEY` | ЮKassa → Настройки → Ключи API |
-| `NEXT_PUBLIC_APP_URL` | `https://твой-домен.ru` |
-| `NEXT_PUBLIC_APP_DOMAIN` | `твой-домен.ru` |
+| `NEXT_PUBLIC_APP_URL` | `https://beauty-site.ru` |
+| `NEXT_PUBLIC_APP_DOMAIN` | `beauty-site.ru` |
+| `NEXT_PUBLIC_YM_ID` | Яндекс.Метрика → номер счётчика |
+| `WORKER_URL` | URL VPS worker |
+| `WORKER_SECRET` | секрет для авторизации worker |
 
-### 4. Настройка домена
+### Настройка домена
 
-1. Vercel Dashboard → **Settings → Domains**
-2. Добавь свой домен: `vibesite.ru`
-3. Добавь wildcard для поддоменов клиентов: `*.vibesite.ru`
-4. Настрой DNS у регистратора домена:
-   ```
-   A     @    76.76.21.21
-   CNAME *    cname.vercel-dns.com
-   ```
-
-### 5. Настройка Supabase для продакшна
-
-В Supabase → **Authentication → URL Configuration** добавь:
 ```
-https://твой-домен.ru/auth/callback
+A     @    76.76.21.21
+CNAME *    cname.vercel-dns.com
 ```
+
+Supabase → Authentication → URL Configuration → добавить `https://beauty-site.ru/auth/callback`
 
 ---
 
-## Подключение ЮKassa
+## ЮKassa webhook
 
-1. Зарегистрируйся на [yookassa.ru](https://yookassa.ru) и подключи магазин
-2. Получи ключи: **Настройки → Ключи API**
-3. Добавь ключи в `.env.local` и Vercel
-4. Настрой webhook в ЮKassa:
-   - **Настройки → HTTP-уведомления**
-   - URL: `https://твой-домен.ru/api/payments/webhook`
-   - События: `payment.succeeded`, `payment.canceled`
+Настройки → HTTP-уведомления → URL: `https://beauty-site.ru/api/payments/webhook`
+События: `payment.succeeded`, `payment.canceled`
 
 ---
 
-## Как сделать себя администратором
+## Известные ограничения
 
-После регистрации открой Supabase → **Table Editor → users** → найди свою запись → измени поле `role` с `user` на `admin`.
-
-Тогда будет доступна страница `/admin`.
-
----
-
-## Смена модели AI
-
-В `.env.local` измени одну строку:
-
-```env
-ROUTERAI_MODEL=anthropic/claude-opus-4-5
-```
-
-Список доступных моделей: [routerai.ru/models](https://routerai.ru/models)
+- Поддомены на localhost не работают — тестировать через `/api/site/поддомен`
+- Только одностраничные сайты
+- Автопродление подписки не реализовано (нет cron)
+- SSL wildcard обновлять вручную каждые 90 дней
+- Максимальный размер фото: 4.5 МБ (лимит Vercel serverless)
+- ЮKassa прекратила поддержку самозанятых с 29.12.2025 — уточнить условия
 
 ---
 
-## Тестирование клиентских сайтов локально
+## Как стать администратором
 
-Поддомены не работают на localhost. Для локального теста открывай напрямую:
+Supabase → Table Editor → `users` → найти свою запись → поле `role` изменить на `admin`.
 
-```
-http://localhost:3000/api/site/твой-поддомен
-```
-
-На проде с настроенным wildcard DNS сайт откроется по адресу:
-
-```
-https://имя-мастера.vibesite.ru
-```
+Даёт доступ к `/admin` и `/admin/analytics`.
