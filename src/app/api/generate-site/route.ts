@@ -240,7 +240,7 @@ export async function POST(request: Request) {
 
     // 8. Сразу отвечаем клиенту
     await track('site_generated', {
-      website_id: siteId,
+      website_id: siteId ?? undefined,
       niche: formData.niche,
       style: formData.style,
     })
