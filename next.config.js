@@ -40,7 +40,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https://storage.yandexcloud.net https://*.supabase.co https://images.unsplash.com https://*.beauty-site.ru https://mc.yandex.ru",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://routerai.ru https://api.yookassa.ru https://mc.yandex.ru",
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://routerai.ru https://api.yookassa.ru https://mc.yandex.ru wss://mc.yandex.ru",
               "frame-src 'self' https://*.beauty-site.ru",
               "frame-ancestors 'self'",
             ].join('; '),
