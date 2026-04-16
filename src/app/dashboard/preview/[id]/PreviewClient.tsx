@@ -20,6 +20,7 @@ import {
 import { cn } from '@/lib/utils'
 import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
+import { track } from '@/lib/analytics'
 import type { Website } from '@/types'
 
 interface Props {
@@ -87,6 +88,11 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
   const [editing, setEditing] = useState(false)
   const [balance, setBalance] = useState(initialBalance)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Трекаем открытие предпросмотра
+  useEffect(() => {
+    track('preview_opened', { website_id: site.id })
+  }, [site.id])
 
   // ── Supabase Realtime + polling: следим за генерацией ──
   useEffect(() => {

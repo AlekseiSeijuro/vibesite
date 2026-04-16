@@ -7,6 +7,7 @@ import { useCreateSiteStore } from '@/store/createSiteStore'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { track } from '@/lib/analytics'
 
 const schema = z.object({
   master_name: z.string().min(2, 'Минимум 2 символа').max(60, 'Максимум 60 символов'),
@@ -36,6 +37,7 @@ export default function Step2Info() {
 
   const onSubmit = (data: FormData) => {
     updateFormData(data)
+    track('wizard_step_completed', { step: 2 })
     nextStep()
   }
 

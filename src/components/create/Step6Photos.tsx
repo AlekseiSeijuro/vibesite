@@ -8,6 +8,7 @@ import { ArrowLeft, Upload, X, ImageIcon, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
+import { track } from '@/lib/analytics'
 
 interface UploadedPhoto {
   id: string
@@ -130,6 +131,8 @@ export default function Step6Photos() {
     try {
       const finalFormData = { ...formData, photo_urls: uploadedUrls }
       updateFormData({ photo_urls: uploadedUrls })
+
+      track('wizard_step_completed', { step: 6 })
 
       // Запускаем генерацию — сервер ответит сразу, генерация идёт на VPS
       const res = await fetch('/api/generate-site', {

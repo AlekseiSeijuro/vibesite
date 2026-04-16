@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { uploadToS3 } from '@/lib/s3'
 import { NextResponse } from 'next/server'
 import { publishSiteSchema, parseBody } from '@/lib/validation/schemas'
+import { track } from '@/lib/analytics'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -95,6 +96,11 @@ export async function POST(request: Request) {
 
   const domain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'beauty-site.ru'
   const siteUrl = `https://${site.subdomain}.${domain}`
+
+  await track('site_published', {
+    website_id: websiteId,
+    subdomain: site.subdomain,
+  })
 
   return NextResponse.json({
     websiteId,

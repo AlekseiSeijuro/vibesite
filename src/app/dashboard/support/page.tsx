@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Send, Loader2, MessageCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
+import { track } from '@/lib/analytics'
 
 interface Message {
   id: string
@@ -118,6 +119,8 @@ export default function SupportPage() {
       setMessages((prev) =>
         prev.map((m) => (m.id === tempId ? data.message : m))
       )
+
+      track('support_message_sent')
 
       // Если чата не было — сохраняем
       if (!chat) {

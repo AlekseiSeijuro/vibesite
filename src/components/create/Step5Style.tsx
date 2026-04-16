@@ -5,6 +5,7 @@ import { useCreateSiteStore } from '@/store/createSiteStore'
 import Button from '@/components/ui/Button'
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { track } from '@/lib/analytics'
 import type { SiteStyle } from '@/types'
 
 const STYLES: { value: SiteStyle; label: string; desc: string; colors: string[] }[] = [
@@ -35,6 +36,7 @@ export default function Step5Style() {
 
   const onNext = () => {
     updateFormData({ style, style_notes: notes })
+    track('wizard_step_completed', { step: 5, style })
     nextStep()
   }
 

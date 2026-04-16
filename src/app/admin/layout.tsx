@@ -1,15 +1,16 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Sparkles, Users, Globe, FileText, ClipboardList, Settings, MessageCircle } from 'lucide-react'
+import { Sparkles, Users, Globe, FileText, ClipboardList, Settings, MessageCircle, BarChart2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAV = [
-  { href: '/admin',        label: 'Пользователи', icon: Users,         exact: true },
-  { href: '/admin/sites',  label: 'Сайты',        icon: Globe },
-  { href: '/admin/orders', label: 'Заявки',        icon: ClipboardList },
-  { href: '/admin/support',label: 'Поддержка',      icon: MessageCircle },
-  { href: '/admin/logs',   label: 'Логи',          icon: FileText },
+  { href: '/admin',            label: 'Пользователи', icon: Users,         exact: true },
+  { href: '/admin/sites',      label: 'Сайты',        icon: Globe },
+  { href: '/admin/orders',     label: 'Заявки',        icon: ClipboardList },
+  { href: '/admin/support',    label: 'Поддержка',     icon: MessageCircle },
+  { href: '/admin/analytics',  label: 'Аналитика',     icon: BarChart2 },
+  { href: '/admin/logs',       label: 'Логи',          icon: FileText },
 ]
 
 export default async function AdminLayout({

@@ -7,6 +7,7 @@ import { useCreateSiteStore } from '@/store/createSiteStore'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { track } from '@/lib/analytics'
 
 const schema = z
   .object({
@@ -50,6 +51,7 @@ export default function Step3Contacts() {
       Object.entries(data).filter(([, v]) => v && v.trim() !== '')
     )
     updateFormData({ contacts })
+    track('wizard_step_completed', { step: 3 })
     nextStep()
   }
 

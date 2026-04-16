@@ -2,6 +2,7 @@
 
 import { useCreateSiteStore } from '@/store/createSiteStore'
 import { cn } from '@/lib/utils'
+import { track } from '@/lib/analytics'
 import type { BeautyNiche } from '@/types'
 
 const NICHES: { value: BeautyNiche; label: string; emoji: string; desc: string }[] = [
@@ -21,6 +22,7 @@ export default function Step1Niche() {
 
   const handleSelect = (niche: BeautyNiche) => {
     updateFormData({ niche })
+    track('wizard_step_completed', { step: 1, niche })
     nextStep()
   }
 

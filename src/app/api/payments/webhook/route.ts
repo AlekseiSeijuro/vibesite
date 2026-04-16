@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { verifyWebhookPayment } from '@/lib/yookassa/client'
 import { getPlanEndDate, PLAN_CONFIGS } from '@/lib/yookassa/plans'
+import { track } from '@/lib/analytics'
 
 /**
  * Webhook от ЮKassa
@@ -82,6 +83,10 @@ export async function POST(request: Request) {
     })
 
     console.log('[webhook] Balance topup:', userId, '+', topupAmount, '-> balance:', newBalance)
+    await track('payment_success', {
+      plan: 'balance_topup',
+      amount: paymentAmount,
+    })
     return NextResponse.json({ ok: true })
   }
 
@@ -134,6 +139,11 @@ export async function POST(request: Request) {
       end_date: endDate?.toISOString() ?? null,
       amount,
       payment_id: paymentId,
+    })
+
+    await track('payment_success', {
+      plan: planSlug ?? plan.slug,
+      amount,
     })
 
     console.log('[webhook] Subscription processed:', paymentId)

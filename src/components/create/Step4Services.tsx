@@ -5,6 +5,7 @@ import { useCreateSiteStore } from '@/store/createSiteStore'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { ArrowLeft, ArrowRight, Plus, Trash2, GripVertical } from 'lucide-react'
+import { track } from '@/lib/analytics'
 import type { ServiceItem } from '@/types'
 
 function generateId() {
@@ -54,6 +55,7 @@ export default function Step4Services() {
   const onNext = () => {
     if (!validate()) return
     updateFormData({ services })
+    track('wizard_step_completed', { step: 4 })
     nextStep()
   }
 

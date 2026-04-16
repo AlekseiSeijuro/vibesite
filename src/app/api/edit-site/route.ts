@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { validateEditMessage } from '@/lib/promptSafety'
+import { track } from '@/lib/analytics'
 
 const EDIT_COST = 49
 
@@ -135,6 +136,8 @@ export async function POST(request: Request) {
     }
 
     // 7. Отвечаем клиенту — правка в процессе
+    await track('site_edit_requested', { website_id: websiteId })
+
     return NextResponse.json({
       success: true,
       status: 'processing',

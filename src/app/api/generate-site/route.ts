@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { buildPrompt, hashFormData } from '@/lib/promptBuilder'
 import { generateSubdomain } from '@/lib/utils'
 import { generateSiteSchema, parseBody } from '@/lib/validation/schemas'
+import { track } from '@/lib/analytics'
 import type { WebsiteFormData } from '@/types'
 import { validateAllFormFields, sanitizeFormField } from '@/lib/promptSafety'
 
@@ -238,6 +239,12 @@ export async function POST(request: Request) {
     }
 
     // 8. Сразу отвечаем клиенту
+    await track('site_generated', {
+      website_id: siteId,
+      niche: formData.niche,
+      style: formData.style,
+    })
+
     return NextResponse.json({
       websiteId: siteId,
       status: 'generating',
