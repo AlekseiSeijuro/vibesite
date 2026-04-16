@@ -2,15 +2,14 @@ import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Sparkles, Users, Globe, FileText, ClipboardList, Settings, MessageCircle, BarChart2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 const NAV = [
   { href: '/admin',            label: 'Пользователи', icon: Users,         exact: true },
   { href: '/admin/sites',      label: 'Сайты',        icon: Globe },
-  { href: '/admin/orders',     label: 'Заявки',        icon: ClipboardList },
-  { href: '/admin/support',    label: 'Поддержка',     icon: MessageCircle },
-  { href: '/admin/analytics',  label: 'Аналитика',     icon: BarChart2 },
-  { href: '/admin/logs',       label: 'Логи',          icon: FileText },
+  { href: '/admin/orders',     label: 'Заявки',       icon: ClipboardList },
+  { href: '/admin/support',    label: 'Поддержка',    icon: MessageCircle },
+  { href: '/admin/analytics',  label: 'Аналитика',    icon: BarChart2 },
+  { href: '/admin/logs',       label: 'Логи',         icon: FileText },
 ]
 
 export default async function AdminLayout({
@@ -24,7 +23,6 @@ export default async function AdminLayout({
 
   const adminSupabase = await createAdminClient()
 
-  // Проверяем роль напрямую в БД
   const { data: profile } = await adminSupabase
     .from('users')
     .select('role')
@@ -33,7 +31,6 @@ export default async function AdminLayout({
 
   if (profile?.role !== 'admin') redirect('/dashboard')
 
-  // Суммарный счётчик непрочитанных сообщений для бейджа в навигации
   const { data: unreadData } = await adminSupabase
     .from('support_chats')
     .select('unread_by_admin')
@@ -45,9 +42,10 @@ export default async function AdminLayout({
   )
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Боковая панель */}
-      <aside className="w-56 bg-white border-r border-gray-200 flex flex-col fixed h-full z-30">
+    <div className="min-h-screen bg-gray-50">
+
+      {/* ── Боковая панель (только md+) ── */}
+      <aside className="hidden md:flex w-56 bg-white border-r border-gray-200 flex-col fixed h-full z-30">
         <div className="p-5 border-b border-gray-100">
           <Link href="/" className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-brand-600" />
@@ -58,7 +56,13 @@ export default async function AdminLayout({
 
         <nav className="flex-1 p-3 space-y-1">
           {NAV.map((item) => (
-            <AdminNavLink key={item.href} {...item} unread={item.href === '/admin/support' ? totalUnread : 0} />
+            <SideNavLink
+              key={item.href}
+              href={item.href}
+              label={item.label}
+              icon={item.icon}
+              unread={item.href === '/admin/support' ? totalUnread : 0}
+            />
           ))}
         </nav>
 
@@ -73,40 +77,86 @@ export default async function AdminLayout({
         </div>
       </aside>
 
-      {/* Контент */}
-      <main className="flex-1 ml-56 p-8">
+      {/* ── Шапка на мобильных ── */}
+      <header className="md:hidden sticky top-0 z-30 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-brand-600" />
+          <span className="font-bold text-gray-900">Vibesite</span>
+          <span className="text-xs text-gray-400 ml-1">/ Админ</span>
+        </Link>
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-brand-600 transition-colors"
+        >
+          <Settings className="h-4 w-4" />
+          <span>Кабинет</span>
+        </Link>
+      </header>
+
+      {/* ── Контент ── */}
+      <main className="md:ml-56 p-4 md:p-8 pb-24 md:pb-8">
         {children}
       </main>
+
+      {/* ── Нижняя навигация (только мобильные) ── */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200">
+        <div className="grid grid-cols-6 h-16">
+          {NAV.map((item) => (
+            <BottomNavLink
+              key={item.href}
+              href={item.href}
+              label={item.label}
+              icon={item.icon}
+              unread={item.href === '/admin/support' ? totalUnread : 0}
+            />
+          ))}
+        </div>
+      </nav>
+
     </div>
   )
 }
 
-// Отдельный серверный компонент не может быть 'use client',
-// поэтому делаем простую ссылку без usePathname
-function AdminNavLink({
-  href,
-  label,
-  icon: Icon,
-  unread = 0,
+function SideNavLink({
+  href, label, icon: Icon, unread = 0,
 }: {
-  href: string
-  label: string
-  icon: React.ElementType
-  exact?: boolean
-  unread?: number
+  href: string; label: string; icon: React.ElementType; unread?: number
 }) {
   return (
     <Link
       href={href}
       className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-brand-50 hover:text-brand-700 transition-colors"
     >
-      <Icon className="h-4 w-4" />
+      <Icon className="h-4 w-4 shrink-0" />
       <span className="flex-1">{label}</span>
       {unread > 0 && (
         <span className="min-w-[20px] h-5 flex items-center justify-center bg-red-500 text-white text-xs font-semibold rounded-full px-1.5">
           {unread}
         </span>
       )}
+    </Link>
+  )
+}
+
+function BottomNavLink({
+  href, label, icon: Icon, unread = 0,
+}: {
+  href: string; label: string; icon: React.ElementType; unread?: number
+}) {
+  return (
+    <Link
+      href={href}
+      className="relative flex flex-col items-center justify-center gap-1 text-gray-500 hover:text-brand-600 transition-colors"
+    >
+      <div className="relative">
+        <Icon className="h-5 w-5" />
+        {unread > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 flex items-center justify-center bg-red-500 text-white text-[10px] font-semibold rounded-full px-1">
+            {unread}
+          </span>
+        )}
+      </div>
+      <span className="text-[10px] leading-none">{label}</span>
     </Link>
   )
 }
