@@ -3,15 +3,35 @@ import { NextResponse, type NextRequest } from 'next/server'
 import type { ResponseCookie } from 'next/dist/compiled/@edge-runtime/cookies'
 
 const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN ?? 'beauty-site.ru'
-// Полный хост приложения (без протокола), например vibesite.vercel.app или vibesite.ru
 const APP_HOST = (process.env.NEXT_PUBLIC_APP_URL ?? '')
   .replace('https://', '')
   .replace('http://', '')
+
+// User-agent'ы Яндекса, которые должны проходить без блокировки
+const YANDEX_BOT_PATTERNS = [
+  'YandexBot',
+  'YandexDirect',
+  'YandexMetrika',
+  'YandexImages',
+  'YandexAccessibilityBot',
+]
 
 type CookieToSet = { name: string; value: string; options?: Partial<ResponseCookie> }
 
 export async function middleware(request: NextRequest) {
   const host = request.headers.get('host') ?? ''
+
+  // ============================================================
+  // ЯНДЕКС-БОТЫ — пропускаем без проверок авторизации
+  // чтобы Яндекс.Директ не получал 403 и не останавливал кампании
+  // ============================================================
+  const userAgent = request.headers.get('user-agent') ?? ''
+  const isYandexBot = YANDEX_BOT_PATTERNS.some((p) =>
+    userAgent.toLowerCase().includes(p.toLowerCase())
+  )
+  if (isYandexBot) {
+    return NextResponse.next()
+  }
 
   // ============================================================
   // ПОДДОМЕНЫ КЛИЕНТСКИХ САЙТОВ
