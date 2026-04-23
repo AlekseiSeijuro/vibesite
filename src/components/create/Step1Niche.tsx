@@ -22,7 +22,7 @@ export default function Step1Niche() {
 
   const handleSelect = (niche: BeautyNiche) => {
     updateFormData({ niche })
-    track('wizard_step_completed', { step: 1, niche })
+    track('wizard_step_completed', { step: 1 })
     nextStep()
   }
 

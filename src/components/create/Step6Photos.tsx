@@ -166,6 +166,7 @@ export default function Step6Photos() {
       }
 
       const data = await res.json()
+      track('wizard_step_completed', { step: 6 })
       await track('site_generated', {
         website_id: data.websiteId,
         niche: formData.niche,

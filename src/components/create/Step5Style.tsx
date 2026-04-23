@@ -6,6 +6,7 @@ import Button from '@/components/ui/Button'
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { track } from '@/lib/analytics'
+import { useEffect } from 'react'
 import type { SiteStyle } from '@/types'
 
 const STYLES: { value: SiteStyle; label: string; desc: string; colors: string[] }[] = [

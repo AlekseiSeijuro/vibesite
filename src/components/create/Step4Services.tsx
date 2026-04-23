@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useCreateSiteStore } from '@/store/createSiteStore'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import { ArrowLeft, ArrowRight, Plus, Trash2, GripVertical } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Plus, Trash2 } from 'lucide-react'
 import { track } from '@/lib/analytics'
 import type { ServiceItem } from '@/types'
 
@@ -34,7 +34,6 @@ export default function Step4Services() {
 
   const updateService = (id: string, field: keyof ServiceItem, value: string) => {
     setServices(services.map((s) => (s.id === id ? { ...s, [field]: value } : s)))
-    // Сбрасываем ошибку при вводе
     setErrors((prev) => {
       const next = { ...prev }
       delete next[`${id}_${field}`]

@@ -46,7 +46,6 @@ export default function Step3Contacts() {
   })
 
   const onSubmit = (data: FormData) => {
-    // Убираем пустые значения
     const contacts = Object.fromEntries(
       Object.entries(data).filter(([, v]) => v && v.trim() !== '')
     )
