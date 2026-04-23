@@ -51,10 +51,19 @@ export default function DashboardNav({ user }: DashboardNavProps) {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
+  const [signingOut, setSigningOut] = useState(false)
+
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/')
-    router.refresh()
+    if (signingOut) return
+    setSigningOut(true)
+    try {
+      await supabase.auth.signOut()
+    } catch {
+      // игнорируем ошибку signOut, всё равно редиректим
+    } finally {
+      setSigningOut(false)
+      window.location.href = '/'
+    }
   }
 
   const isActive = (href: string, exact?: boolean) => {
@@ -115,11 +124,12 @@ export default function DashboardNav({ user }: DashboardNavProps) {
 
             <button
               onClick={handleSignOut}
-              className="btn-ghost text-sm text-gray-500"
+              disabled={signingOut}
+              className="btn-ghost text-sm text-gray-500 disabled:opacity-50"
               title="Выйти"
             >
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Выйти</span>
+              <LogOut className={`h-4 w-4 ${signingOut ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{signingOut ? 'Выход...' : 'Выйти'}</span>
             </button>
           </div>
         </div>

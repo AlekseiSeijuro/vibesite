@@ -32,6 +32,7 @@ export default function RegisterPage() {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
 
   const {
     register,
@@ -40,6 +41,7 @@ export default function RegisterPage() {
   } = useForm<FormData>({ resolver: zodResolver(schema) })
 
   const onSubmit = async (data: FormData) => {
+    if (loading) return
     setLoading(true)
     const { error } = await supabase.auth.signUp({
       email: data.email,
@@ -50,10 +52,14 @@ export default function RegisterPage() {
     })
 
     if (error) {
-      if (error.message.includes('already registered')) {
-        toast.error('Этот email уже зарегистрирован')
+      if (error.message.includes('already registered') || error.message.includes('User already registered')) {
+        toast.error('Этот email уже зарегистрирован. Попробуйте войти.')
+      } else if (error.message.includes('rate limit') || error.message.includes('email rate limit') || error.status === 429) {
+        toast.error('Слишком много запросов. Подождите немного и попробуйте снова.')
+      } else if (error.message.includes('Invalid email')) {
+        toast.error('Некорректный email адрес')
       } else {
-        toast.error('Ошибка регистрации. Попробуйте ещё раз.')
+        toast.error('Ошибка регистрации. Попробуйте через несколько минут или напишите в поддержку.')
       }
       setLoading(false)
       return
@@ -64,12 +70,15 @@ export default function RegisterPage() {
   }
 
   const handleGoogle = async () => {
+    if (googleLoading) return
+    setGoogleLoading(true)
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     })
+    setGoogleLoading(false)
   }
 
   return (
@@ -88,7 +97,8 @@ export default function RegisterPage() {
         {/* Google */}
         <button
           onClick={handleGoogle}
-          className="w-full flex items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition mb-5"
+          disabled={googleLoading || loading}
+          className="w-full flex items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition mb-5 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
