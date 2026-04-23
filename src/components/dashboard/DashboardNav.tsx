@@ -56,14 +56,10 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const handleSignOut = async () => {
     if (signingOut) return
     setSigningOut(true)
-    try {
-      await supabase.auth.signOut()
-    } catch {
-      // игнорируем ошибку signOut, всё равно редиректим
-    } finally {
-      setSigningOut(false)
-      window.location.href = '/'
-    }
+    // Редиректим сразу, не ждём ответа Supabase
+    // signOut вызываем в фоне — сессия очистится после редиректа
+    window.location.href = '/'
+    supabase.auth.signOut().catch(() => {})
   }
 
   const isActive = (href: string, exact?: boolean) => {
