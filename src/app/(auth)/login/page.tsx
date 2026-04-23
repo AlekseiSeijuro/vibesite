@@ -41,11 +41,14 @@ export default function LoginPage() {
     })
 
     if (error) {
-      toast.error(
-        error.message === 'Invalid login credentials'
-          ? 'Неверный email или пароль'
-          : 'Ошибка входа. Попробуйте ещё раз.'
-      )
+      console.error('[login] signIn error:', error.status, error.message)
+      if (error.message === 'Invalid login credentials') {
+        toast.error('Неверный email или пароль')
+      } else if (error.message === 'Email not confirmed') {
+        toast.error('Ещё не подтверждён email. Проверьте почту и перейдите по ссылке из письма от Vibesite.', { duration: 8000 })
+      } else {
+        toast.error('Ошибка входа. Попробуйте ещё раз.')
+      }
       setLoading(false)
       return
     }

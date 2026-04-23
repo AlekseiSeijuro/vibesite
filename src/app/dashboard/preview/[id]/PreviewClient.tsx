@@ -402,10 +402,11 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
             href={getPreviewUrl(site.id)}
             target="_blank"
             rel="noopener noreferrer"
-            className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-900 hover:bg-gray-700 text-white transition-colors"
             title="Открыть на полную страницу"
           >
-            <Maximize2 className="h-4 w-4" />
+            <Maximize2 className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Полный экран</span>
           </a>
         )}
 
