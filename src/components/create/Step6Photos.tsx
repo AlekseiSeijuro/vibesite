@@ -143,6 +143,25 @@ export default function Step6Photos() {
 
       if (!res.ok) {
         const err = await res.json()
+        if (err.code === 'GENERATION_LIMIT') {
+          const isPaid = err.limit === 7
+          toast.error(
+            isPaid
+              ? `Вы использовали все ${err.limit} генерации за сегодня. Лимит обновится через 24 часа.`
+              : `Вы использовали все ${err.limit} бесплатные генерации за сегодня. Лимит обновится через 24 часа — или перейдите на платный тариф для увеличения лимита до 7 в день.`,
+            { duration: 8000 }
+          )
+          setSubmitting(false)
+          return
+        }
+        if (err.code === 'SITE_LIMIT') {
+          toast.error(
+            'На демо-тарифе можно создать только 1 сайт. Перейдите на платный тариф чтобы создавать неограниченное количество.',
+            { duration: 8000 }
+          )
+          setSubmitting(false)
+          return
+        }
         throw new Error(err.error ?? 'Ошибка генерации')
       }
 
