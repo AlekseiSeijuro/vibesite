@@ -56,11 +56,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   const handleSignOut = async () => {
     if (signingOut) return
     setSigningOut(true)
-    // Сначала очищаем локальную сессию мгновенно
     await supabase.auth.signOut({ scope: 'local' })
-    // Инвалидируем токен на сервере Supabase в фоне
-    // Не ждём — пользователь уже разлогинен локально
-    fetch('/api/account/signout', { method: 'POST' }).catch(() => {})
     window.location.href = '/'
   }
 
