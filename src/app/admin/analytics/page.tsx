@@ -12,17 +12,18 @@ export default async function AnalyticsPage() {
   // ── 1. Воронка создания сайта (30 дней) ──────────────────────────────────
   const { data: funnelRaw } = await supabase
     .from('analytics_events')
-    .select('properties')
+    .select('properties, user_id')
     .eq('event_name', 'wizard_step_completed')
     .gte('created_at', new Date(Date.now() - 30 * 86400000).toISOString())
 
   const funnelMap: Record<number, Set<string>> = {}
   for (const row of funnelRaw ?? []) {
     const step = (row.properties as any)?.step as number
-    const sid = (row.properties as any)?.session_id as string ?? 'x'
+    // Считаем по user_id если авторизован, иначе по session_id
+    const uid = row.user_id ?? (row.properties as any)?.session_id ?? 'x'
     if (step >= 1 && step <= 6) {
       if (!funnelMap[step]) funnelMap[step] = new Set()
-      funnelMap[step].add(sid)
+      funnelMap[step].add(uid)
     }
   }
   const funnel: FunnelRow[] = [1, 2, 3, 4, 5, 6].map((step) => ({
@@ -32,12 +33,11 @@ export default async function AnalyticsPage() {
 
   // ── 2. Конверсия (30 дней) ────────────────────────────────────────────────
   const since30 = new Date(Date.now() - 30 * 86400000).toISOString()
-  const { data: genUsers } = await supabase
+  const { count: generationsCount } = await supabase
     .from('analytics_events')
-    .select('user_id')
+    .select('*', { count: 'exact', head: true })
     .eq('event_name', 'site_generated')
     .gte('created_at', since30)
-    .not('user_id', 'is', null)
 
   const { data: paidUsers } = await supabase
     .from('analytics_events')
@@ -46,7 +46,7 @@ export default async function AnalyticsPage() {
     .gte('created_at', since30)
     .not('user_id', 'is', null)
 
-  const generatedCount = new Set(genUsers?.map((r) => r.user_id)).size
+  const generatedCount = generationsCount ?? 0
   const paidCount = new Set(paidUsers?.map((r) => r.user_id)).size
   const convPct = generatedCount > 0 ? Math.round((paidCount / generatedCount) * 100 * 10) / 10 : 0
 
