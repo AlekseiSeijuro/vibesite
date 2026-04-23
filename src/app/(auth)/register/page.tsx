@@ -52,10 +52,22 @@ export default function RegisterPage() {
     })
 
     if (error) {
-      if (error.message.includes('already registered') || error.message.includes('User already registered')) {
+      console.error('[register] signUp error:', error.status, error.message)
+      if (
+        error.message.includes('already registered') ||
+        error.message.includes('User already registered')
+      ) {
         toast.error('Этот email уже зарегистрирован. Попробуйте войти.')
-      } else if (error.message.includes('rate limit') || error.message.includes('email rate limit') || error.status === 429) {
-        toast.error('Слишком много запросов. Подождите немного и попробуйте снова.')
+      } else if (
+        error.message.includes('over_email_send_rate_limit') ||
+        error.message.includes('email rate limit')
+      ) {
+        toast.error('Письмо уже было отправлено на этот адрес. Проверьте папку спам или подождите несколько минут.')
+      } else if (
+        error.message.includes('rate limit') ||
+        error.status === 429
+      ) {
+        toast.error('Слишком много попыток. Подождите немного и попробуйте снова.')
       } else if (error.message.includes('Invalid email')) {
         toast.error('Некорректный email адрес')
       } else {
