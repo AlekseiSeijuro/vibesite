@@ -215,6 +215,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
       setCurrentSubdomain(data.subdomain)
       const url = getSiteUrl(data.subdomain, 'published')
       setSiteUrl(url)
+      await track('site_published', { website_id: site.id, subdomain: data.subdomain })
       toast.success('Сайт опубликован!')
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Ошибка публикации')
@@ -269,6 +270,7 @@ export default function PreviewClient({ site, isPaid, hasCompletedOrder, editBal
 
       // Баланс списан, правка отправлена на worker
       setBalance(data.newBalance)
+      await track('site_edit_requested', { website_id: site.id })
 
       // Polling по edit_logs — ждём когда статус станет success или failed
       const supabase = createClient()

@@ -147,6 +147,11 @@ export default function Step6Photos() {
       }
 
       const data = await res.json()
+      await track('site_generated', {
+        website_id: data.websiteId,
+        niche: formData.niche,
+        style: formData.style,
+      })
       router.push(`/dashboard/preview/${data.websiteId}`)
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Ошибка'
